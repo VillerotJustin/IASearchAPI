@@ -1,30 +1,33 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+# Packages and functions for loading environment variables
+import os
+from dotenv import load_dotenv, find_dotenv
+
+# Load environment from disk first, then apply any defaults
+load_dotenv(find_dotenv('../../.env'))
 
 
-class Config(BaseSettings):
+class Config():
     # App description
-    APP_NAME: str = "IASearchAPI"
-    APP_DESC: str
-    APP_VERSION: str
+    APP_NAME = os.environ.get('APP_NAME', 'IASearchAPI')
+    APP_DESC = os.environ.get('APP_DESC', '')
+    APP_VERSION = os.environ.get('APP_VERSION', '')
 
     # Documentation location
-    DOCS_URL: str = "/docs"
-    REDOC_URL: str = "/redoc"
+    DOCS_URL = os.environ.get('DOCS_URL', '/docs')
+    REDOC_URL = os.environ.get('REDOC_URL', '/redoc')
 
     # NEO4J DB Info
-    NEO4J_URI: str
-    NEO4J_USERNAME: str
-    NEO4J_PASSWORD: str
+    NEO4J_URI = os.environ.get('NEO4J_URI', '')
+    NEO4J_USERNAME = os.environ.get('NEO4J_USERNAME', 'neo4j')
+    NEO4J_PASSWORD = os.environ.get('NEO4J_PASSWORD', '')
 
     # Application password for superadmin functions (/auth/launch_user endpoint for first-time setup)
-    APP_PASSWORD: str
+    APP_PASSWORD = os.environ.get('APP_PASSWORD')
 
     # Settings for encryption
-    SECRET_KEY: str
-    ALGORITHM: str
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 10_080
-
-    model_config = SettingsConfigDict(env_file="../.env")
+    SECRET_KEY = os.environ.get('SECRET_KEY', 'secret')
+    ALGORITHM = os.environ.get('ALGORITHM', "HS256")
+    CESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get('ACCESS_TOKEN_EXPIRE_MINUTES', 10_080))  # one week
 
 
 settings = Config()

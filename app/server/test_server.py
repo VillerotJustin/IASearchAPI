@@ -13,7 +13,7 @@ router = APIRouter()
 @router.get("/info")
 def info():
     return {
-        "app_name": settings.app_name,
+        "app_name": settings.APP_NAME,
     }
 
 

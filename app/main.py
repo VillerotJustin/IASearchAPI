@@ -12,11 +12,11 @@ from app.utils.environment import settings
 
 
 app = FastAPI(
-    title=settings.app_name,
-    description=settings.app_desc,
-    version=settings.app_version,
-    docs_url=settings.docs_url,
-    redoc_url=settings.redoc_url
+    title=settings.APP_NAME,
+    description=settings.APP_DESC,
+    version=settings.APP_VERSION,
+    docs_url=settings.DOCS_URL,
+    redoc_url=settings.REDOC_URL
 )
 
 app.include_router(
@@ -50,3 +50,4 @@ app.include_router(
     tags=['Query Database'],
     dependencies=[Depends(get_current_active_user)]
 )
+
