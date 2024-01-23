@@ -1,27 +1,14 @@
-from graphdatascience import GraphDataScience
-from neontology import init_neontology
-from fastapi import APIRouter, Depends
-from dependencies import get_token_header
-from config import settings
+# Lib
 import time
 
-router = APIRouter(
-    tags=["Admin"],
-    responses={404: {"description": "Not found"}},
-)
+from fastapi import APIRouter
+from graphdatascience import GraphDataScience
 
+# Internal
+from app.utils.environment import settings
 
-# Neo4j database connection
-@router.on_event("startup")
-async def startup_event():
-    init_neontology(
-        init_neontology(
-            neo4j_uri=settings.NEO4J_URI,
-            neo4j_username=settings.NEO4J_USERNAME,
-            neo4j_password=settings.NEO4J_PASSWORD,
-        )
-    )
-
+# Set the API Router
+router = APIRouter()
 
 @router.get("/info")
 def info():
