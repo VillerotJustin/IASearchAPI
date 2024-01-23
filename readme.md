@@ -27,6 +27,6 @@
 
 > uvicorn main:app --reload
 
-The API should be accecible at this address
+The API should be accecible at this address+
 
 >  http://127.0.0.1:8000
