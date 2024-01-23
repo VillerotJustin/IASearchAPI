@@ -35,8 +35,6 @@ The API should be accecible at this address+
 
 ``` shell
 APP_NAME="IASearchAPI_default"
-DEV_PORT=8000
-PROD_PORT=8000
 NEO4J_URI="NEO4J BDD URI"
 NEO4J_USERNAME="username"
 NEO4J_PASSWORD="password"
