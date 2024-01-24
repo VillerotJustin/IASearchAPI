@@ -14,8 +14,15 @@ router = APIRouter()
 
 # List of acceptable node labels and relationship types
 # Modify these to add constraints
-node_labels = ['Address', 'Geography', 'Person', 'Company', 'Event']
-relationship_types = ['LIVES_IN', 'USED_TO_LIVE_IN', 'WORKS_FOR', 'LOCATED_IN', 'KNOWS', 'ATTENDED', 'FRIEND']
+query = "CALL db.labels()"
+result = neo4j_driver.session().run(query=query)
+data = result.data()
+node_labels = data
+
+query = "CALL db.relationshipTypes()"
+result = neo4j_driver.session().run(query=query)
+data = result.data()
+relationship_types = data
 
 # Used for validation to ensure they are not overwritten
 base_properties = ['created_by', 'created_time']
@@ -44,14 +51,14 @@ async def get_all_property_keys():
 
 # Properties of Label
 @router.get('/propertykeys/{label}')
-async def get_all_property_keys(label:str):
+async def get_all_property_keys(label: str):
     query = f"""MATCH (n:{label})
         WITH n LIMIT 25
         UNWIND keys(n) as key
         RETURN distinct key"""
     # renvoie la liste des propriétés/champ de donnée des ressources (c'est à dire les noeuds ayant le label ns0__record dans le cas du projet HUMANE)
     with neo4j_driver.session() as session:
-        result = session.run(query=query,)
+        result = session.run(query=query, )
         data = result.data()
     return data
 

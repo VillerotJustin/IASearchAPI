@@ -4,6 +4,7 @@ from fastapi import FastAPI, Depends
 # Internal packages
 from app.authorisation import auth
 from app.authorisation.auth import get_current_active_user
+from app.ia import ia
 from app.user_management import users
 from app.graph import crud
 from app.query import cypher
@@ -50,3 +51,11 @@ app.include_router(
     tags=['Query Database'],
     dependencies=[Depends(get_current_active_user)]
 )
+
+app.include_router(
+    ia.router,
+    prefix='/IA',
+    tags=['IA search'],
+    dependencies=[Depends(get_current_active_user)]
+)
+
