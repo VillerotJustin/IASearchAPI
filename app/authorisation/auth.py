@@ -10,7 +10,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 # Modules for encryption and security
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-
+from typing_extensions import Annotated
 
 # Import utilities functions, configuration and schemas
 from app.utils.environment import Config
@@ -40,20 +40,28 @@ def get_user(username: str):
 
     with neo4j_driver.session() as session:
         user_in_db = session.run(query)
-        user_data = user_in_db.data()[0]['a']
+        data = user_in_db.data()
+        print(data)
+        if not data:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"User with  username ({username}) not found.",
+                headers={"WWW-Authenticate": "get_user"})
+        user_data = data[0]['a']
         return UserInDB(**user_data)
 
 
 # Authenticate user by checking they exist and that the password is correct
 def authenticate_user(username, password):
-    # First, retrieve the user by the email provided
+    # First, retrieve the user by the username provided
     user = get_user(username)
-    if not user:
-        return False
-
+    print("")
+    print("---------------------")
+    print(user)
+    print("---------------------")
+    print("")
     # If present, verify password against password hash in database
     password_hash = user.hashed_password
-    username = user.username
 
     return user if verify_password(password, password_hash) else False
 
@@ -71,6 +79,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 # Decrypt the token and retrieve the username from payload
 async def get_current_user(token: str = Depends(oauth2_scheme)):
+    print(oauth2_scheme)
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -91,16 +100,27 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
 
 # Confirm that user is not disabled as a user
-async def get_current_active_user(current_user: User = Depends(get_current_user)):
+async def get_current_active_user(
+    current_user: Annotated[User, Depends(get_current_user)]
+):
     if current_user.disabled:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
-
 # Endpoint for token authorisation
 @router.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    print("")
+    print("---------------------")
+    print(f"|{form_data.username}|  |{form_data.password}|")
+    print("---------------------")
+    print("")
     user = authenticate_user(form_data.username, form_data.password)
+    print("")
+    print("---------------------")
+    print(f"|{user}|")
+    print("---------------------")
+    print("")
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

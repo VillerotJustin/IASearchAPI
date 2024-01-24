@@ -50,4 +50,3 @@ app.include_router(
     tags=['Query Database'],
     dependencies=[Depends(get_current_active_user)]
 )
-

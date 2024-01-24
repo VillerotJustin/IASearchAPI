@@ -21,6 +21,42 @@ relationship_types = ['LIVES_IN', 'USED_TO_LIVE_IN', 'WORKS_FOR', 'LOCATED_IN', 
 base_properties = ['created_by', 'created_time']
 
 
+# GRAPH PROPERTIES
+# Labels
+@router.get('/labels')
+async def get_all_labels():
+    query = "CALL db.labels()"
+    with neo4j_driver.session() as session:
+        result = session.run(query=query)
+        data = result.data()
+    return data
+
+
+# Property Keys
+@router.get('/propertykeys')
+async def get_all_property_keys():
+    query = "CALL db.propertyKeys()"
+    with neo4j_driver.session() as session:
+        result = session.run(query=query)
+        data = result.data()
+    return data
+
+
+# Properties of Label
+@router.get('/propertykeys/{label}')
+async def get_all_property_keys(label:str):
+    query = f"""MATCH (n:{label})
+        WITH n LIMIT 25
+        UNWIND keys(n) as key
+        RETURN distinct key"""
+    # renvoie la liste des propriétés/champ de donnée des ressources (c'est à dire les noeuds ayant le label ns0__record dans le cas du projet HUMANE)
+    with neo4j_driver.session() as session:
+        result = session.run(query=query,)
+        data = result.data()
+    return data
+
+
+# NODES
 # CREATE new node
 @router.post('/create_node', response_model=Node)
 async def create_node(label: str, node_attributes: dict,
@@ -178,7 +214,6 @@ async def update_node(node_id: int, attributes: dict):
 # DELETE node in the graph
 @router.post('/delete/{node_id}')
 async def delete_node(node_id: int):
-
     cypher = """
     MATCH (node)
     WHERE ID(node) = $node_id
@@ -219,7 +254,8 @@ async def create_relationship(source_node_label: str, source_node_property: str,
                                 headers={"WWW-Authenticate": "Bearer"})
 
     if relationship_attributes:
-        unpacked_attributes = 'SET ' + ', '.join(f'relationship.{key}=\'{value}\'' for (key, value) in relationship_attributes.items())
+        unpacked_attributes = 'SET ' + ', '.join(
+            f'relationship.{key}=\'{value}\'' for (key, value) in relationship_attributes.items())
     else:
         unpacked_attributes = ''
 
@@ -266,7 +302,6 @@ async def create_relationship(source_node_label: str, source_node_property: str,
 # READ data about a relationship
 @router.get('/read_relationship/{relationship_id}', response_model=Relationship)
 async def read_relationship(relationship_id: int):
-
     cypher = """
         MATCH (nodeA)-[relationship]->(nodeB)
         WHERE ID(relationship) = $rel_id
@@ -299,7 +334,6 @@ async def read_relationship(relationship_id: int):
 # READ data about a relationship
 @router.put('/update_relationship/{relationship_id}', response_model=Relationship)
 async def update_relationship(relationship_id: int, attributes: dict):
-
     cypher = """
     MATCH (nodeA)-[relationship]->(nodeB)
     WHERE ID(relationship) = $rel_id
@@ -334,7 +368,6 @@ async def update_relationship(relationship_id: int, attributes: dict):
 # DELETE relationship in the graph
 @router.post('/delete_relationship/{relationship_id}')
 async def delete_relationship(relationship_id: int):
-
     cypher = """
         MATCH (a)-[relationship]->(b)
         WHERE ID(relationship) = $relationship_id

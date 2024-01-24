@@ -27,7 +27,7 @@ class Config():
     # Settings for encryption
     SECRET_KEY = os.environ.get('SECRET_KEY', 'secret')
     ALGORITHM = os.environ.get('ALGORITHM', "HS256")
-    CESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get('ACCESS_TOKEN_EXPIRE_MINUTES', 10_080))  # one week
+    ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get('ACCESS_TOKEN_EXPIRE_MINUTES', 10_080))  # one week
 
 
 settings = Config()

@@ -5,6 +5,7 @@ from typing import Optional
 # Import modules from FastAPI
 from fastapi import APIRouter, Depends, HTTPException, status
 
+import app.utils.schema
 # Import internal utilities for database access, authorisation, and schemas
 from app.utils.db import neo4j_driver
 from app.authorisation.auth import get_current_active_user, create_password_hash
@@ -27,7 +28,13 @@ async def read_user(username: str):
 
     with neo4j_driver.session() as session:
         user_in_db = session.run(query=query, parameters={'username': username})
-        user_data = user_in_db.data()[0]['user']
+        data = user_in_db.data()
+        if not data:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"User with  username ({username}) not found.",
+                headers={"WWW-Authenticate": "Bearer"})
+        user_data = data[0]['user']
 
     return User(**user_data)
 
@@ -77,6 +84,19 @@ async def update_user(attributes: dict, username: str):
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Operation not permitted, cannot update password with this method.",
                 headers={"WWW-Authenticate": "Bearer"})
+        if k == 'username':
+            #print(f"\n update \n {username}\n-\n{attributes['username']}\n-\n")
+            query = 'MATCH (user:User) WHERE user.username = $username RETURN user'
+            name = attributes['username']
+            with neo4j_driver.session() as session:
+                user_in_db = session.run(query=query, parameters={'username': name})
+                data = user_in_db.data()
+                print(f"data {data}\n")
+                if data:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail="Username already exists.",
+                        headers={"WWW-user-delete": "Bearer"})
 
     if attributes:
         unpacked_attributes = 'SET ' + ', '.join(f'user.{key}=\'{value}\'' for (key, value) in attributes.items())
@@ -99,6 +119,17 @@ async def update_user(attributes: dict, username: str):
 # DELETE User
 @router.delete('/{username}/delete')
 async def delete_user(username: str):
+    query = 'MATCH (user:User) WHERE user.username = $username RETURN user'
+
+    with neo4j_driver.session() as session:
+        user_in_db = session.run(query=query, parameters={'username': username})
+        data = user_in_db.data()
+        if not data:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="User not found.",
+                headers={"WWW-user-delete": "Bearer"})
+
     # Execute Cypher query to delete the user
     cypher_delete_user = """MATCH (user: User) WHERE user.username=$user DELETE user"""
 
@@ -123,5 +154,6 @@ async def reset_password(new_password: str, current_user: User = Depends(get_cur
         updated_user = session.run(query=cypher_reset_password,
                                    parameters={'username': username,
                                                'new_password_hash': new_password_hash})
-        user_data = updated_user.data()[0]['user']
+        data = updated_user.data()
+        user_data = data[0]['user']
     return User(**user_data)
