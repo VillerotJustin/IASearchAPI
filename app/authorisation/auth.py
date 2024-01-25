@@ -41,7 +41,6 @@ def get_user(username: str):
     with neo4j_driver.session() as session:
         user_in_db = session.run(query)
         data = user_in_db.data()
-        print(data)
         if not data:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -55,11 +54,6 @@ def get_user(username: str):
 def authenticate_user(username, password):
     # First, retrieve the user by the username provided
     user = get_user(username)
-    print("")
-    print("---------------------")
-    print(user)
-    print("---------------------")
-    print("")
     # If present, verify password against password hash in database
     password_hash = user.hashed_password
 
@@ -79,7 +73,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 # Decrypt the token and retrieve the username from payload
 async def get_current_user(token: str = Depends(oauth2_scheme)):
-    print(oauth2_scheme)
+    # print(oauth2_scheme)
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -110,17 +104,7 @@ async def get_current_active_user(
 # Endpoint for token authorisation
 @router.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    print("")
-    print("---------------------")
-    print(f"|{form_data.username}|  |{form_data.password}|")
-    print("---------------------")
-    print("")
     user = authenticate_user(form_data.username, form_data.password)
-    print("")
-    print("---------------------")
-    print(f"|{user}|")
-    print("---------------------")
-    print("")
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

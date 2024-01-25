@@ -91,7 +91,7 @@ async def update_user(attributes: dict, username: str):
             with neo4j_driver.session() as session:
                 user_in_db = session.run(query=query, parameters={'username': name})
                 data = user_in_db.data()
-                print(f"data {data}\n")
+                #print(f"data {data}\n")
                 if data:
                     raise HTTPException(
                         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

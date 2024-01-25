@@ -18,7 +18,9 @@ router = APIRouter()
 
 # Query endpoint
 @router.get('/q', response_model=Query, summary='Query the database with a custom Cypher string')
-async def cypher_query(cypher_string: str):
-    with neo4j_driver.session() as session:
-        response = session.run(query=cypher_string)
-        return Query(response=response.data())
+async def cypher_query(attributes: dict):
+    print(attributes["cypher_string"])
+    if attributes["cypher_string"] is not None and attributes["cypher_string"] != "":
+        with neo4j_driver.session() as session:
+            response = session.run(query=attributes["cypher_string"])
+            return Query(response=response.data())
