@@ -1,4 +1,6 @@
 # Import modules from FastAPI
+import json
+
 from fastapi import APIRouter
 
 # Other Libs
@@ -92,13 +94,13 @@ def get_all_labels():
         data = result.data()
     return data
 
+
 def get_every_property_keys_no_async():
     query = "CALL db.propertyKeys()"
     with neo4j_driver.session() as session:
         result = session.run(query=query)
         data = result.data()
     return data
-
 
 
 def get_all_property_keys_of_label(label):
@@ -138,31 +140,122 @@ def number_ressources_label(label: str):  # number of ressources for a particula
 
 ###
 # IA
+# is it worth it, i don't know
 ###
 
 data['node_label'] = get_all_labels()
 data['property_keys'] = get_every_property_keys_no_async()
 
 
-# Matieres = ns0__setSpec
+# Matières = ns0__setSpec
 
 # API request
 @router.post('/search')
 async def AISearch(attributes: dict):
-    # Parameter parsing
+    json_object = json.loads(json.dumps(attributes))
+    json_formatted_str = json.dumps(json_object, indent=2)
+    print(json_formatted_str)
 
-    config_file_data = attributes["config_file"]
+    final_query = f"""
+    MATCH(ressource: ns0__record)-[: ns0__has_setSpec]->(filtre1:ns0__setSpec)
+    WHERE(split(filtre1.uri, '#')[1] CONTAINS 'PHY') 
+    WITH collect(ressource) AS filter_ns0__setSpec
+    
+    MATCH(ressource: ns0__record)-[r: ns0__has_taxon]->(taxon:ns0__taxon)
+    WHERE ressource IN filter_ns0__setSpec
+    WITH 
+        ressource.ns0__identifier as ID, 
+        ressource.ns0__title_string AS title, 
+        ressource.ns0__description_string AS description, 
+        collect(taxon.ns0__entry_string) AS phrases
+    RETURN
+        ID, 
+        title,
+        description,
+        reduce(s='', phrase IN phrases | s + phrase) AS concatenated_taxon
+    """
 
-    # print(config_file_data)
+    # {
+    #   "config_file": {
+    #     "project_name": "HUMANE",
+    #     "label": "ns0__record",
+    #     "filters": {
+    #       "ns0__setSpec": "PHY"
+    #     },
+    #     "opt_filters": {}
+    #   },
+    #   "request_parameters": [
+    #     "PHY"
+    #   ]
+    # }
 
-    build_fichier_config(config_file_data)
+    target_node_class = attributes["config_file"]["label"]
+    filters = attributes["config_file"]["filters"]
 
-    # Neo4J Request
-    filtered_nodes = essential_filter_request(attributes["request_parameters"])
+    filters_cypher = ""  # f"filtre1:{filter_node_class}"
+    where_cypher = ""  # f"WHERE(split(filtre1.uri, '#')[1] CONTAINS 'PHY')"
+    i = 0
+    for filter_node_class in filters:
+        filter_value = filters[filter_node_class]
+        print(filter_node_class, filter_value)
+        filters_cypher += f"-[: {filter_value[1]}]->(filtre{i}:{filter_node_class})"
+        where_cypher += f"WHERE(split(filtre{i}.uri, '#')[1] CONTAINS '{filter_value[0]}')"
+        if i + 1 < len(filters):
+            where_cypher += "|\n|"
+        i += 1
 
-    # Suggestion Processing
+    query_part1 = f"""
+    MATCH(ressource: {target_node_class}){filters_cypher}
+    {where_cypher} 
+    WITH collect(ressource) AS filtered_{target_node_class}
+    """
 
-    return {"result": filtered_nodes}
+    with_parameters = attributes["config_file"]["WITH"]
+    with_cypher = "WITH\n"
+    i = 0
+    for element in with_parameters:
+        value = with_parameters[element]
+        print(element, value)
+        with_cypher += f"    {element} AS {value}"
+        if i + 1 < len(with_parameters):
+            with_cypher += ",\n"
+        i += 1
+
+    return_parameters = attributes["config_file"]["RETURN"]
+    return_cypher = "RETURN\n"
+    for element in return_parameters:
+        return_cypher += f"    {element}"
+        if i + 1 < len(return_parameters):
+            return_cypher += ",\n"
+        i += 1
+
+    query_part2 = f"""
+    MATCH(ressource: {target_node_class})-[r: ns0__has_taxon]->(taxon:ns0__taxon)
+    WHERE ressource IN filtered_{target_node_class}
+    {with_cypher}
+    RETURN
+        ID, 
+        title,
+        description,
+        reduce(s='', phrase IN phrases | s + phrase) AS concatenated_taxon
+    """
+
+    # TODO clear from database related
+
+    query = query_part1 + query_part2
+
+    print(query)
+
+    with neo4j_driver.session() as session:
+        query_result = session.run(query=query)
+        data['query_result'] = query_result.data()
+        # print(f"data {data['query_result']}\n")
+
+    filtered_nodes = data['query_result']
+    return {
+        "number_of_results": len(filtered_nodes),
+        "result": filtered_nodes
+    }
 
 
 def essential_filter_request(attributes):
@@ -185,7 +278,7 @@ def essential_filter_request(attributes):
             data['query_param'][f'{value}'] = ''
     # query += "WHERE"
     for value in data['query_param']:
-        #print(value)
+        # print(value)
         query += f""
 
     query += "RETURN ressource"
@@ -614,10 +707,8 @@ def tf_idf(title: str, description: str, columns, user_request: list):
     # concatène le titre et la description de la ressource
     combined = title + ' ' + description
 
-    ###
-    # ajout de la requête utilisateur dans le data des ressources filtrées jusque la pour comparer cette requêtes aux description et titres et mots clés (taxons)
-    # des ressources déjà filtrées
-    ###
+    # ## ajout de la requête utilisateur dans les data des ressources filtrées jusque-là pour comparer cette requête
+    # aux descriptions et titres et mots clés (taxons) des ressources déjà filtrées ##
 
     # Créer une série avec des valeurs nulles sauf pour la dernière colonne
     new_line = pd.Series(
@@ -627,9 +718,9 @@ def tf_idf(title: str, description: str, columns, user_request: list):
     # data =  pd.concat([data, new_line.to_frame().T], ignore_index=True)
     # st.write(f"df = {data['df']}")
 
-    ###
-    # importance de la syntaxe des mots : si un mot n'est pas écrit avec la même orthographe comme il l'est écrit dans les ressource alors il n'est
-    #  pas pris en compte dans la recherche comme le montre l'exemple ci dessous qui ne renvoie pas le même résultat
-    # user_request = "trigonométrie 3e cosinus sinus géométrie "  # renvoie la ressource : Cosinus et sinus sous GeoGebra Construction des courbes des fonctions sinus et cosinus à partir du cercle trigonométrique.
-    # user_request = "trigonométrie 3e cosinu sinu géométrie "   # renvoie la ressource : Apprendre la trigonométrie , Séquence de découverte des fonctions trigonométriques en classe de 3e,
-    ###
+    # ## importance de la syntaxe des mots : si un mot n'est pas écrit avec la même orthographe comme il l'est écrit
+    # dans les ressources alors, il n'est pas pris en compte dans la recherche comme le montre l'exemple ci-dessous qui
+    # ne renvoie pas le même résultat user_request = "trigonométrie 3e cosinus sinus géométrie " renvoie la
+    # ressource : Cosinus et sinus sous GeoGebra Construction des courbes des fonctions sinus et cosinus à partir du
+    # cercle trigonométrique. user_request = "trigonométrie 3e cosinu sinu géométrie " renvoie la ressource :
+    # Apprendre la trigonométrie, Séquence de découverte des fonctions trigonométriques en classe de 3e, ##

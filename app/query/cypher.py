@@ -2,7 +2,8 @@
 from dotenv import load_dotenv, find_dotenv
 
 # Import modules from FastAPI
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+from starlette import status
 
 # Import internal utilities for database access and schemas
 from app.utils.db import neo4j_driver
@@ -19,8 +20,13 @@ router = APIRouter()
 # Query endpoint
 @router.get('/q', response_model=Query, summary='Query the database with a custom Cypher string')
 async def cypher_query(attributes: dict):
-    print(attributes["cypher_string"])
+    # print(attributes["cypher_string"])
     if attributes["cypher_string"] is not None and attributes["cypher_string"] != "":
         with neo4j_driver.session() as session:
             response = session.run(query=attributes["cypher_string"])
             return Query(response=response.data())
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Empty or null cypher string.",
+            headers={"WWW-Authenticate": "Bearer"})
