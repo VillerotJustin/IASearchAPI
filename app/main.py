@@ -10,7 +10,9 @@ from app.graph import crud
 from app.query import cypher
 from app.server import test_server
 from app.utils.environment import settings
+from app.utils.model import loaded_model
 
+frWac_model = loaded_model
 
 app = FastAPI(
     title=settings.APP_NAME,
