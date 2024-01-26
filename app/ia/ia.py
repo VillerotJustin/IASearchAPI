@@ -150,42 +150,14 @@ data['property_keys'] = get_every_property_keys_no_async()
 # API request
 @router.post('/search')
 async def AISearch(attributes: dict):
-    json_object = json.loads(json.dumps(attributes))
-    json_formatted_str = json.dumps(json_object, indent=2)
-    print(json_formatted_str)
+    ## Json print for debugging
+    # json_object = json.loads(json.dumps(attributes))
+    # json_formatted_str = json.dumps(json_object, indent=2)
+    # print(json_formatted_str)
 
-    final_query = f"""
-    MATCH(ressource: ns0__record)-[: ns0__has_setSpec]->(filtre1:ns0__setSpec)
-    WHERE(split(filtre1.uri, '#')[1] CONTAINS 'PHY') 
-    WITH collect(ressource) AS filter_ns0__setSpec
-    
-    MATCH(ressource: ns0__record)-[r: ns0__has_taxon]->(taxon:ns0__taxon)
-    WHERE ressource IN filter_ns0__setSpec
-    WITH 
-        ressource.ns0__identifier as ID, 
-        ressource.ns0__title_string AS title, 
-        ressource.ns0__description_string AS description, 
-        collect(taxon.ns0__entry_string) AS phrases
-    RETURN
-        ID, 
-        title,
-        description,
-        reduce(s='', phrase IN phrases | s + phrase) AS concatenated_taxon
-    """
-
-    # {
-    #   "config_file": {
-    #     "project_name": "HUMANE",
-    #     "label": "ns0__record",
-    #     "filters": {
-    #       "ns0__setSpec": "PHY"
-    #     },
-    #     "opt_filters": {}
-    #   },
-    #   "request_parameters": [
-    #     "PHY"
-    #   ]
-    # }
+    ###
+    #   Filter
+    ###
 
     target_node_class = attributes["config_file"]["label"]
     filters = attributes["config_file"]["filters"]
@@ -255,6 +227,10 @@ async def AISearch(attributes: dict):
         # print(f"data {data['query_result']}\n")
 
     filtered_nodes = data['query_result']
+
+    ###
+    #  Recommandation
+    ###
 
     # TODO recommendation
 
