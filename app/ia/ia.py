@@ -17,6 +17,7 @@ from sklearn.metrics.pairwise import linear_kernel
 
 # Import internal utilities for database access, authorisation, and schemas
 from app.utils.db import neo4j_driver
+from app.utils.environment import settings
 from app.utils.model import loaded_model
 
 # Set the API Router
@@ -155,100 +156,24 @@ data['property_keys'] = get_every_property_keys_no_async()
 # API request
 @router.post('/search')
 async def AISearch(attributes: dict):
-    ### Json print for debugging
-    # json_object = json.loads(json.dumps(attributes))
-    # json_formatted_str = json.dumps(json_object, indent=2)
-    # print(json_formatted_str)
+    # Parameter Recovery
+    AISearch_part1(attributes)
 
-    ###
-    #   Filter
-    # affiche formulaire 1
-    # affiche formulaire 2 ?
-    ###
+    # Filtering nodes
+    AISearch_part2()
 
-    filter_nodes(attributes["filter_config"])
+    # Recommandation Setup
+    AISearch_part3()
 
-    filtered_nodes = data['filtered_node']
+    # Recommandation Calculation
+    AISearch_part4()
 
-    ###
-    #  Recommandation
-    ###
-
-    recomandation(filtered_nodes, attributes["recomandation_config"])
+    data["recommended_ressources"] = data['filtered_node']
 
     return {
         "number_of_results": len(data["recommended_ressources"]),
         "result": data["recommended_ressources"]
     }
-
-
-def filter_nodes(filter_params):
-    target_node_class = filter_params["label"]
-    filters = filter_params["filters"]
-
-    filters_cypher = ""  # f"filtre1:{filter_node_class}"
-    where_cypher = ""  # f"WHERE(split(filtre1.uri, '#')[1] CONTAINS 'PHY')"
-    i = 0
-    for filter_node_class in filters:
-        filter_value = filters[filter_node_class]
-        print(filter_node_class, filter_value)
-        filters_cypher += f"-[: {filter_value[1]}]->(filtre{i}:{filter_node_class})"
-        where_cypher += f"WHERE(split(filtre{i}.uri, '#')[1] CONTAINS '{filter_value[0]}')"
-        if i + 1 < len(filters):
-            where_cypher += "|\n|"
-        i += 1
-
-    query_part1 = f"""
-        MATCH(ressource: {target_node_class}){filters_cypher}
-        {where_cypher} 
-        WITH collect(ressource) AS filtered_{target_node_class}
-        """
-
-    with_parameters = filter_params["WITH"]
-    with_cypher = "WITH\n"
-    i = 0
-    for element in with_parameters:
-        value = with_parameters[element]
-        # print(element, value)
-        with_cypher += f"    {element} AS {value}"
-        if i + 1 < len(with_parameters):
-            with_cypher += ",\n"
-        i += 1
-
-    return_parameters = filter_params["RETURN"]
-    return_cypher = "RETURN\n"
-    for element in return_parameters:
-        return_cypher += f"    {element}"
-        if i + 1 < len(return_parameters):
-            return_cypher += ",\n"
-        i += 1
-
-    taxon = filter_params["taxon"]
-    taxon_cypher = ""
-    if taxon != {}:
-        for element in taxon:
-            value = taxon[element]
-            taxon_cypher += f"-[r: {element}]->(taxon:{value})"
-
-    query_part2 = f"""
-        MATCH(ressource: {target_node_class}){taxon_cypher}
-        WHERE ressource IN filtered_{target_node_class}
-        {with_cypher}
-        RETURN
-            ID, 
-            title,
-            description,
-            reduce(s='', phrase IN phrases | s + phrase) AS concatenated_taxon
-        """
-
-    query = query_part1 + query_part2
-
-    # print(query)
-
-    with neo4j_driver.session() as session:
-        query_result = session.run(query=query)
-        data['filtered_node'] = query_result.data()
-        # print(f"data {data['query_result']}\n")
 
 
 def recomandation(filtered_nodes, recomandation_config):
@@ -406,6 +331,15 @@ def recomandation(filtered_nodes, recomandation_config):
             line += 1
 
         data['tfidf_matrix+Word2Vec'] = tfidf_vectors
+
+        # Créer une série avec des valeurs nulles sauf pour la dernière colonne
+        nouvelle_ligne = pd.Series(
+            [None] * (len(data['df'].columns) - 1) + [recomandation_config['user_request']],
+            index=data['df'].columns
+        )
+
+        data['df'] = pd.concat([data['df'], nouvelle_ligne.to_frame().T], ignore_index=True)
+
         print(f"Mots de la requête utilisateur suivante :"
               f"   ''' {data['df']['cleaned_desc'].iloc[-1]} '''   "
               f"qui ne sont pas présent dans le vocabulaire du modèle et donc ne sont pas pris en compte"
@@ -437,7 +371,6 @@ def result_recovery(recomandation_config):
     if similarity_method == "cosine similarity":
         # Calculating the similarity measures based on Cosine Similarity
         if recomandation_config["recomandation_method"] == 'TF-IDF':
-
             tf_idf_similarity_matrix = cosine_similarity(
                 data['tfidf_matrix'],
                 data['tfidf_matrix']
@@ -558,10 +491,248 @@ def affichage_resultat_de_la_recommandation(df, nom_de_la_methode, matrice_simil
         # si la ressource en question a déjà été recommandé on propose celle qui suit dans la liste, si l'indice
         # correspond à la requête utilisateur dans la matrice de similarité car la ligne est rempli de 0 (dans le cas
         # il n'y pas ou trop peu de résultat car des mots ne sont pas reconnus) alors on passe aussi à l'indice suivant
-        while (n < (n_meilleur_resultats + 5) and sorted_indices[n] in data["recommended_ressources"]) or (sorted_indices[n] == (df.shape[0] - 1)):
+        while (n < (n_meilleur_resultats + 5) and sorted_indices[n] in data["recommended_ressources"]) or (
+                sorted_indices[n] == (df.shape[0] - 1)):
             n += 1
             # st.write(f"df shape = {st.session_state['df'].shape[0]}  et sorted_indices[{n}] = {sorted_indices[n]}")
 
         print(f"TITRE : {df['title'][sorted_indices[n]]} \nDESCRIPTION : {df['description'][sorted_indices[n]]} \n")
 
 
+def AISearch_part1(attributes):
+    # Sélectionnez le label de la node symbolisant les ressources dans la base de donnée neo4j, c'est-à-dire les nœuds
+    # avec un titre et une description comme champ de donnée de la ressource | Ressource = ['choix_node_ressource']
+
+    data['ressource'] = attributes['ressource']
+    data['sub_ressource'] = attributes['sub_ressource']
+
+    # Sélectionnez les champs de donnée de la ressource pour vos filtres essentiels | ?
+
+    data['choice_of_resource_data_fields'] = attributes['choice_of_resource_data_fields']
+
+    # Sélectionnez le label des nœuds pour vos filtres essentiels (choisissez au moins 1 paramètre) : Filters
+
+    data['essential_filters'] = attributes['essential_filters']
+
+    # Choisir le nombre maximal de critères pour chaque donnée,
+    # c'est-à-dire le nombre de choix dans le menu déroulant pour chaque filtre essentiel :
+
+    data['nb_criteria_for_each_data'] = attributes['nb_criteria_for_each_data']
+    data['threshold_percentage_max_filter'] = attributes['threshold_percentage_max_filter']
+
+    # Sélectionnez le critère du filtre essentiel ns0__setSpec = PHY
+
+    data['filters_criteria'] = attributes['filters_criteria']
+
+    # check if no error in json and there is the good number of criteria
+    if len(data['filters_criteria']) != len(data['essential_filters']):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid number of criteria",
+            headers={"WWW-Authenticate": "Bearer"})
+
+    data["WITH_RETURN"] = attributes['WITH_RETURN']
+
+    # Entrez votre requête, insérez tous les mots que doit contenir la ressource qui correspond à vos besoins
+    # Recomandation → |la trajectoire de la courbe est parabolique| ← ['requete_utilisateur']
+
+    data['user_request'] = attributes['user_request']
+
+    # Methode de calcul = TF-IDF+Word2Vec
+
+    data['method'] = attributes['method']
+
+    # Number of result
+
+    data['n_result'] = attributes['n_result']
+
+    # Similarity method
+
+    data['similarity_method'] = attributes['similarity_method']
+    similarity_method_possible_value = ["cosine", "euclidean", "dot"]
+    if data['similarity_method'] not in similarity_method_possible_value:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid similarity method, possible values:{similarity_method_possible_value}",
+            headers={"WWW-Authenticate": "Bearer"})
+
+
+# Filter Ressource with filters
+def AISearch_part2():
+    query = ""
+    last_filter = ""
+    for i in range(len(data['essential_filters'])):
+        print(f"Filter{i}")
+        print(data['essential_filters'][i])
+        print(data['filters_criteria'][i])
+        filteri = data['essential_filters'][i]
+        filter_criteria = data['filters_criteria'][i]
+        relationship = settings.DB_PREFIX + "has_" + filteri.replace(settings.DB_PREFIX, "")
+        filter_query = f"MATCH(ressource: {data['ressource']})-[: {relationship}]->(filtre{i}:{filteri})\nWHERE "
+
+        if last_filter != "":
+            filter_query += f"ressource IN {last_filter} AND ("
+
+        if len(filter_criteria) > 1:
+            filter_query += "("
+            for criteria in filter_criteria:
+                filter_query += f"(split(filtre{i}.uri, '#')[1] CONTAINS '{criteria}') OR "
+            filter_query = filter_query[:-4] + ")"
+        else:
+            filter_query += f"split(filtre{i}.uri, '#')[1] CONTAINS '{filter_criteria[0]}'"
+
+        if last_filter != "":
+            filter_query += ")"
+
+        filter_query += f"\nWITH collect(ressource) AS filter_{filteri}\n\n"
+        last_filter = f"filter_{filteri}"
+        query += filter_query
+
+    sub_ressource = (f"-[r: {settings.DB_PREFIX + 'has_' + data['sub_ressource'].replace(settings.DB_PREFIX, '')}]"
+                     f"->(taxon:{data['sub_ressource']})")
+
+    final_query = f"MATCH(ressource: {data['ressource']}){sub_ressource}\nWHERE ressource IN {last_filter}\n"
+
+    with_cypher = "WITH\n"
+    return_cypher = "RETURN\n"
+    i = 0
+    for element in data['WITH_RETURN']:
+        value = data['WITH_RETURN'][element]
+        # print(element, value)
+        with_cypher += f"    {element} AS {value}"
+        return_cypher += f"    {value}"
+        if i + 1 < len(data['WITH_RETURN']):
+            with_cypher += ",\n"
+            return_cypher += ",\n"
+        else:
+            with_cypher += "\n"
+        i += 1
+
+    final_query += with_cypher + return_cypher
+
+    query += final_query
+
+    print(f"query : \n{query}")
+
+    with neo4j_driver.session() as session:
+        query_result = session.run(query=query)
+        data['filtered_node'] = query_result.data()
+
+
+# Recommandation setup
+def AISearch_part3():
+    # TODO
+    print("Setup")
+
+
+# Recommandation Calculate
+def AISearch_part4():
+    # TODO
+    print("Searching")
+
+# TODO Reconstruct all those request
+# MATCH(n: ns0__record) RETURN n.ns0__location
+
+# MATCH(n: ns0__record) RETURN n.ns0__identifier
+
+# MATCH(n: ns0__setSpec) WITH n.uri AS uri RETURN split(uri, "#")[1] AS lettresApresHashtag
+
+# MATCH(n: ns0__language) RETURN n.ns0__language_label
+
+# MATCH(n: ns0__record) RETURN count(n)
+
+# MATCH(n: ns0__record)-[r: ns0__has_setSpec]->(m:ns0__setSpec)
+# WITH m.uri AS uri, count(n) AS nodeCount
+# RETURN split(uri, "#")[1] AS ns0__setSpec, nodeCount
+
+# MATCH(n: ns0__record)-[r: ns0__has_language]->(c:ns0__language)
+# WITH c.ns0__language_label AS ns0__language, count(n) AS nodeCount
+# RETURN ns0__language, nodeCount
+
+# 7647 ressource ne peut pas être examinée dans la base de donnée neo4j, le problème provient probablement de la
+# syntaxe dans son label ou sur l'un de ces champs de données accedes par exemple
+
+# Filters
+
+# MATCH(ressource: ns0__record)-[: ns0__has_setSpec]->(filtre1:ns0__setSpec)
+# WHERE(split(filtre1.uri, "#")[1] CONTAINS "PHY" OR split(filtre1.uri, "#")[1] CONTAINS "MATHS" )
+# WITH collect(ressource) AS filter_ns0__setSpec
+
+# MATCH(ressource: ns0__record)-[: ns0__has_language]->(filtre2:ns0__language)
+# WHERE ressource IN filter_ns0__setSpec AND (filtre2.ns0__language_label CONTAINS "français (fra)")
+# WITH collect(ressource)
+# AS filter_ns0__language
+
+# MATCH(ressource: ns0__record)-[r: ns0__has_taxon]->(taxon:ns0__taxon)
+# WHERE ressource IN filter_ns0__language
+# WITH
+#   ressource.ns0__identifier as ID,
+#   ressource.ns0__title_string AS title,
+#   ressource.ns0__description_string as description,
+#   collect(taxon.ns0__entry_string) AS phrases
+# RETURN ID, title, description, reduce(s="", phrase IN phrases | s + ' ' + phrase) AS concatenated_taxon
+#
+
+#                                       Miscellaneous
+# 7647
+# [nltk_data]
+# Downloading
+# package
+# stopwords
+# to
+# [nltk_data] / home / villerot / nltk_data...
+# [nltk_data]
+# Package
+# stopwords is already
+# up - to - date!
+# Dernière
+# ligne
+# triée: [0.27288677 0.26349432 0.20030452 0.15403147 0.15333147 0.14529025]
+# Indices
+# d
+# 'origine triés : [ 133  708  893 2280  739 2393]
+# Nom
+# de
+# la
+# technique
+# pour
+# calculé
+# la
+# similarité
+# utilisé: cosine
+# similarity
+#
+# query: MATCH(n:ns0__record) where
+# n.ns0__identifier = 'oai:edubase:15260'
+# return n.ns0__resource_identifier, n.ns0__location
+# Dernière
+# ligne
+# triée: [0.80445845 0.76701529 0.67381224 0.66748612 0.65585026 0.65552752
+#         0.65376275 0.64896806 0.64518883]
+# Indices
+# d
+# 'origine triés : [ 739 2280  227  346 2704 2717 1424  893  799]
+# Nom
+# de
+# la
+# technique
+# pour
+# calculé
+# la
+# similarité
+# utilisé: cosine
+# similarity
+#                                                       Final
+# query: MATCH(n:ns0__record) where
+# n.ns0__identifier = 'oai:edubase:8101'
+# return n.ns0__resource_identifier, n.ns0__location
+# query: MATCH(n:ns0__record) where
+# n.ns0__identifier = 'oai:edubase:8878'
+# return n.ns0__resource_identifier, n.ns0__location
+# query: MATCH(n:ns0__record) where
+# n.ns0__identifier = 'oai:edubase:10019'
+# return n.ns0__resource_identifier, n.ns0__location
+# query: MATCH(n:ns0__record) where
+# n.ns0__identifier = 'oai:edubase:16163'
+# return n.ns0__resource_identifier, n.ns0__location
+#

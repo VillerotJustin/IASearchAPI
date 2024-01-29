@@ -6,7 +6,7 @@ from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv('../../.env'))
 
 
-class Config():
+class Config:
     # App description
     APP_NAME = os.environ.get('APP_NAME', 'IASearchAPI')
     APP_DESC = os.environ.get('APP_DESC', '')
@@ -20,6 +20,7 @@ class Config():
     NEO4J_URI = os.environ.get('NEO4J_URI', '')
     NEO4J_USERNAME = os.environ.get('NEO4J_USERNAME', 'neo4j')
     NEO4J_PASSWORD = os.environ.get('NEO4J_PASSWORD', '')
+    DB_PREFIX = os.environ.get('DB_PREFIX', '')
 
     # Application password for superadmin functions (/auth/launch_user endpoint for first-time setup)
     APP_PASSWORD = os.environ.get('APP_PASSWORD')
