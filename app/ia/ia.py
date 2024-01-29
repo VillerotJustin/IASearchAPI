@@ -645,6 +645,8 @@ def find_recommended_ressources(df, recommended_ressources_id_list):
         recommended_ressources.append(df.iloc[id])
     data['recommended_ressources'] = recommended_ressources
 
+
+# TODO Remove
 # Final query:
 # MATCH(n:ns0__record) WHERE n.ns0__identifier = 'oai:edubase:8101'
 # RETURN n.ns0__resource_identifier, n.ns0__location
