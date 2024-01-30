@@ -17,13 +17,6 @@ RUN pip install --upgrade pip
 RUN pip install --upgrade pip setuptools
 RUN pip install --no-cache-dir -r requirements.txt || { echo "Failed to install dependencies"; exit 1; }
 
-# Install Neo4J
-
-
-# Make port 80 available to the world outside this container
-EXPOSE 80    # fast API
-EXPOSE 7687  # Neo4J
-
 # Define environment variable
 ENV NAME World
 

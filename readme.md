@@ -55,6 +55,13 @@ ACCESS_TOKEN_EXPIRE_MINUTES=10800
 docker build -t fast_ai_search . 
 ```
 
+Note that if you use docker for the API you must run a docker for neo4j as well.
+
+You will have to change the NEO4J_URI replacing localhost by the result of this command:
+```shell
+docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' <neo4j-container name>
+```
+
 ## Run
 ```shell
 docker run -d --name ai_search_container -p 9000:80 fast_ai_search
@@ -75,5 +82,5 @@ docker exec -it ai_search_container /bin/bash
 ## Neo4J
 
 ```shell
-docker run --name my-neo4j-container -d -p 7474:7474 -p 7687:7687 neo4j:latest 
+docker run -d --name neo4j-container -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/password -v neo4j_data:/home/villerot/Documents/GitHub/AI_Search_Neao4J_Docker_file/ neo4j:latest 
 ```
