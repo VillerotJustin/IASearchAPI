@@ -16,6 +16,8 @@ RUN apt-get update && \
 RUN pip install --upgrade pip
 RUN pip install --upgrade pip setuptools
 RUN pip install --no-cache-dir -r requirements.txt || { echo "Failed to install dependencies"; exit 1; }
+# Download NLTK stopwords
+RUN python -c "import nltk; nltk.download('stopwords')"
 
 # Define environment variable
 ENV NAME World

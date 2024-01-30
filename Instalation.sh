@@ -15,10 +15,14 @@ fi
 # Run Neo4J Docker
 docker stop neo4j-container
 docker rm neo4j-container
+docker volume rm neo4j_data
 docker volume create neo4j_data
-mkdir /data
-docker run -d --name neo4j-container -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH="$username"/"$password" -v neo4j_data:/data neo4j:latest
-#
+# Check if .env exists, and if so, delete it
+if [ -d ../neo4j_data ]; then
+    rm -r ../neo4j_data
+fi
+mkdir ../neo4j_data
+docker run -d --name neo4j-container -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=$username/$password -v neo4j_data:$(readlink -f ../neo4j_data) neo4j:latest
 
 # Use a subshell to execute docker inspect
 ip_neo4j=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' neo4j-container)
