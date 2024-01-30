@@ -1,7 +1,6 @@
 # Import modules from FastAPI
 import configparser
 import re
-from lib2to3.pgen2 import driver
 
 # Other Libs
 import numpy as np
@@ -9,12 +8,11 @@ import pandas as pd
 from fastapi import APIRouter, HTTPException
 from nltk import RegexpTokenizer
 from nltk.corpus import stopwords
-from numpy import random
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import euclidean_distances
-from starlette import status
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.metrics.pairwise import linear_kernel
+from starlette import status
 
 # Import internal utilities for database access, authorisation, and schemas
 from app.utils.db import neo4j_driver
@@ -108,44 +106,9 @@ def get_every_property_keys_no_async():
     return data
 
 
-def get_all_property_keys_of_label(label):
-    query = f"""MATCH (n:{label})
-        WITH n LIMIT 25
-        UNWIND keys(n) as key
-        RETURN distinct key"""
-    # renvoie la liste des propriétés/champ de donnée des ressources
-    with neo4j_driver.session() as session:
-        result = session.run(query=query)
-        properties_key = result.data()
-    properties_key = [element['key'] for element in properties_key]
-    return properties_key
-
-
-def number_ressources():  # number of ressources
-    query = """
-    MATCH (n)
-    RETURN count(n) as count
-    """
-    with neo4j_driver.session() as session:
-        result = session.run(query=query)
-        data = result.data()
-    return data
-
-
-def number_ressources_label(label: str):  # number of ressources for a particular label
-    query = f"""
-    MATCH (n:{label})
-    RETURN count(n) as count
-    """
-    with neo4j_driver.session() as session:
-        result = session.run(query=query)
-        data = result.data()
-    return data
-
-
 ###
 # IA
-# is it worth it, i don't know
+# is it worth it, I don't know
 ###
 
 data['node_label'] = get_all_labels()
@@ -333,7 +296,7 @@ def AISearch_part3():
 
 def TF_IDF(df):
     # Applying all the functions and storing as a cleaned_desc remplace la colonne dans le dataframe contenant la
-    # concaténation des données utilisés pour TF IDF au lieu d'en crée une nouvelle et de dédoubler nos données évite
+    # concaténation des données utilisés pour TF IDF au lieu d'en créer une nouvelle et de dédoubler nos données évite
     # d'avoir une nouvelle colonne dans le dataframe pour alléger le nombre de données
     df['combined'] = df['combined'].apply(_removeNonAscii)
     df['combined'] = df['combined'].apply(func=make_lower_case)
@@ -356,25 +319,25 @@ def TF_IDF(df):
         stop_words=stopwords,
         lowercase=True
     )
-    # ngram_range = (2,2) ne renvoie que des 0 dans la matrice de similarité tf = TfidfVectorizer(analyzer='word',
-    # ngram_range=(1, 3), min_df = 1, max_df = 0.7,  lowercase = True) possibilité de mettre une valeur forte pour
-    # max_df entre 0.7 et 1 à la place  de la liste de stop_word
+    # ngram_range = (2,2) ne renvoie que des 0 dans la matrice de similarité tf = TfidfVectorizer (analyzer='word',
+    # ngram_range=(1, 3), min_df = 1, max_df = 0.7, lowercase = True) possibilité de mettre une valeur forte pour
+    # max_df entre 0.7 et 1 à la place de la liste de stop_word
 
     data['tfidf_matrix'] = tf.fit_transform(df['combined'])
     return df
 
 
 def TF_IDF_Word2Vec(df):
-    # Applying all the functions and storing as a cleaned_desc
-    # le pre processing ici est moins stricte car le modèle Word2vec permet
-    # d'avoir une certaine compréhension du contexte de la phrase donc il ne faut pas dénaturer les textes de notre dataframe
-    # st.session_state['df']['combined'] = st.session_state['df']['combined'].apply(_removeNonAscii)
+    # Applying all the functions and storing as a cleaned_desc le pre processing ici est moins stricte car le modèle
+    # Word2vec permet d'avoir une certaine compréhension du contexte de la phrase donc il ne faut pas dénaturer les
+    # textes de notre dataframe st.session_state['df']['combined'] = st.session_state['df']['combined'].apply(
+    # _removeNonAscii)
     df['combined'] = df.combined.apply(func=make_lower_case)
     df['combined'] = df.combined.apply(func=remove_stop_words)
     df['combined'] = df.combined.apply(func=remove_punctuation)
     df['combined'] = df.combined.apply(func=remove_html)
 
-    # Pas besoin de charger le modele il est charger au lancement de l'appli
+    # Pas besoin de charger le model, il est chargé au lancement de l'appli
 
     # Building TFIDF model and calculate TFIDF score
     tfidf = TfidfVectorizer(
@@ -403,7 +366,7 @@ def TF_IDF_Word2Vec(df):
 
     len_dataframe = len(df['combined'])
     word_not_present_in_vocabulary = []
-    # mots qui ne sont pas dans le vocabulaire du modèle, mais présent dans requête utilisateur
+    # mots qui ne sont pas dans le vocabulaire du modèle, mais présent dans la requête utilisateur
     data['are_word_not_present_in_vocabulary'] = False
     # variable pour identifier si des mots de la requête utilisateur ne sont pas présent dans le vocabulaire du modèle
 
@@ -425,7 +388,8 @@ def TF_IDF_Word2Vec(df):
             if word in loaded_model.key_to_index and word in tfidf_feature:
                 vec = loaded_model[word]
                 tf_idf = tfidf_list[word] * (desc.count(word) / len(desc))
-                # garanti que le score tf_idf est > à 1 pour que exp(tf_idf^2) augmente significativement le score tf_idf
+                # garanti que le score tf_idf est > à 1 pour que exp(tf_idf^2) augmente significativement le score
+                # tf_idf
                 if tf_idf < 1:
                     tf_idf += 1
                 tf_idf = np.exp(tf_idf ** 2)
@@ -451,11 +415,11 @@ def TF_IDF_Word2Vec(df):
 
                     word_not_present_in_vocabulary.append(word)
 
-                    # Si le mot n'est pas reconnu, obtiens le mot le plus proche
-                    # mots_proches = st.session_state['model'].similar_by_word(word, topn=1)
-                    # mots_proches = st.session_state['model'].similar_by_vector(st.session_state['model'][word] , topn=1)
-                    # mot_proche, similarite = mots_proches[0]
-                    # print(f"Le mot le plus proche du mot non reconnu '{word}' est '{mot_proche}' avec une similarité de {similarite}")
+                    # Si le mot n'est pas reconnu, obtiens le mot le plus proche mots_proches = st.session_state[
+                    # 'model'].similar_by_word(word, topn=1) mots_proches = st.session_state[
+                    # 'model'].similar_by_vector(st.session_state['model'][word] , topn=1) mot_proche, similarite =
+                    # mots_proches[0] print(f"Le mot le plus proche du mot non reconnu '{word}' est '{mot_proche}'
+                    # avec une similarité de {similarite}")
 
         if weight_sum != 0:
             sent_vec /= weight_sum
@@ -485,7 +449,7 @@ def AISearch_part4(df):
         tf_idf_similarity_matrix = cosine_similarity(data['tfidf_matrix'], data['tfidf_matrix'])
         # print(cosine_similarity[-1,-1])
         tf_idf_similarity_matrix[-1, -1] = 0
-        # correspond a la similarité entre la requete utilisateur et elle meme qui vaut donc 1 et fausse le résultat
+        # correspond à la similarité entre la requete utilisateur et elle meme qui vaut donc 1 et fausse le résultat
         # que l'on cherche en la mettant à 0 elle n'interfère plus avec le résultat de la meilleure recommandation
         # print (type(cosine_similarity)) print(cosine_similarity) print (cosine_similarity.shape)
         top_n_resultat = 1
@@ -501,7 +465,7 @@ def AISearch_part4(df):
         tf_idf_similarity_matrix = 1 / (1 + euclidean_distances(data['tfidf_matrix'],
                                                                 data['tfidf_matrix']))
         tf_idf_similarity_matrix[-1, -1] = 0
-        # correspond a la similarité entre la requete utilisateur et elle meme qui vaut donc 1 et fausse le résultat
+        # correspond à la similarité entre la requete utilisateur et elle meme qui vaut donc 1 et fausse le résultat
         # que l'on cherche
         top_n_resultat = 1
 
@@ -515,11 +479,11 @@ def AISearch_part4(df):
         # Calcul de similarité avec le produit scalaire
         tf_idf_similarity_matrix = linear_kernel(data['tfidf_matrix'], data['tfidf_matrix'])
         tf_idf_similarity_matrix[-1, -1] = 0
-        # correspond a la similarité entre la requete utilisateur et elle meme qui vaut donc 1 et fausse le résultat
+        # correspond à la similarité entre la requete utilisateur et elle meme qui vaut donc 1 et fausse le résultat
         # que l'on cherche
         top_n_resultat = 1
 
-        if (data['method'] == 'TF-IDF+Word2Vec'):
+        if data['method'] == 'TF-IDF+Word2Vec':
             tf_idf_Word2Vec_similarity_matrix = linear_kernel(data['tfidf_matrix+Word2Vec'],
                                                               data['tfidf_matrix+Word2Vec'])
             # print(cosine_similarity[-1,-1])
@@ -568,7 +532,7 @@ def pick_recomandation(df, similarity_method, similarity_matrix, n_best_results)
     # top_n = 5
     # #renvoie les n meilleure ressource
     sorted_indices = np.argsort(last_row)[::-1][:n_best_results + 5]
-    # [::-1] reversés the array returned by argsort() and [:n] gives that last n elements , n+5 au cas ou il soit
+    # [: :-1] reversés the array returned by argsort() and [:n] gives that last n elements , n+5 au cas ou il soit
     # nécessaire d'avoir besoin de plus de ressource à recommander
 
     # Trie la dernière ligne en fonction des indices triés
@@ -621,11 +585,11 @@ def pick_recomandation(df, similarity_method, similarity_matrix, n_best_results)
         # print(f"[Cliquez ici pour voir la fiche pédagogique]({url_ressource})")
         #
         # # les liens des images décrivant la fiche pédagogique sur le projet HUMANE
-        # # sont de la forme https://thumbnails.appcraft.events/edubase/thumbnail/6551.jpg  avec le
+        # # sont de la forme https://thumbnails.appcraft.events/edubase/thumbnail/6551.jpg avec le
         # # nombre 6551 avant le .jpg correspondant à l'id de la ressource
         #
         # ID_ressource = re.search(r'\d+$', url_ressource.iat[0, 0])
-        # # Utilise une expression régulière pour trouver le nombre à la fin du lien , Cette expression régulière (
+        # # Utilise une expression régulière pour trouver le nombre à la fin du lien, Cette expression régulière (
         # # \d+$) recherche une séquence de chiffres (\d) à la fin ($) de la chaîne. Dans cet exemple, cela extrairait
         # # le nombre "6551" du lien
         # ID_ressource = ID_ressource.group()
@@ -644,21 +608,3 @@ def find_recommended_ressources(df, recommended_ressources_id_list):
     for id in recommended_ressources_id_list:
         recommended_ressources.append(df.iloc[id])
     data['recommended_ressources'] = recommended_ressources
-
-
-# TODO Remove
-# Final query:
-# MATCH(n:ns0__record) WHERE n.ns0__identifier = 'oai:edubase:8101'
-# RETURN n.ns0__resource_identifier, n.ns0__location
-#
-# query:
-# MATCH(n:ns0__record) WHERE n.ns0__identifier = 'oai:edubase:8878'
-# RETURN n.ns0__resource_identifier, n.ns0__location
-#
-# query:
-# MATCH(n:ns0__record) WHERE n.ns0__identifier = 'oai:edubase:10019'
-# RETURN n.ns0__resource_identifier, n.ns0__location
-#
-# query:
-# MATCH(n:ns0__record) WHERE n.ns0__identifier = 'oai:edubase:16163'
-# RETURN n.ns0__resource_identifier, n.ns0__location
