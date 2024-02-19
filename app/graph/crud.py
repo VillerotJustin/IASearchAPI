@@ -256,16 +256,18 @@ async def delete_node(node_id: int):
 # RELATIONSHIPS
 # Create new relationship between two nodes
 @router.post('/create_relationship', response_model=Relationship)
-async def create_relationship(source_node_label: str, source_node_property: str, source_node_property_value: str,
-                              target_node_label: str, target_node_property: str, target_node_property_value: str,
-                              relationship_type: str, relationship_attributes: Optional[dict] = None,
-                              current_user: User = Depends(get_current_active_user)):
+async def create_relationship(attributes: dict, current_user: User = Depends(get_current_active_user)):
+    relationship_type = attributes['relationship_type']
+    relationship_attributes = attributes['relationship_attributes']
+    source_node = attributes['source_node']
+    target_node = attributes['target_node']
+
     # Check that relationship has an acceptable type
-    if relationship_type not in relationship_types:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Operation not permitted, relationship type is not accepted.",
-            headers={"WWW-Authenticate": "Bearer"})
+    # if relationship_type not in relationship_types:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+    #         detail="Operation not permitted, relationship type is not accepted.",
+    #         headers={"WWW-Authenticate": "Bearer"})
 
     # Check that attributes dictionary does not modify base fields
     for key in relationship_attributes:
@@ -275,14 +277,13 @@ async def create_relationship(source_node_label: str, source_node_property: str,
                                 headers={"WWW-Authenticate": "Bearer"})
 
     if relationship_attributes:
-        unpacked_attributes = 'SET ' + ', '.join(
-            f'relationship.{key}=\'{value}\'' for (key, value) in relationship_attributes.items())
+        unpacked_attributes = 'SET ' + ', '.join(f'relationship.{key}=\'{value}\'' for (key, value) in relationship_attributes.items())
     else:
         unpacked_attributes = ''
 
     cypher = f"""
-        MATCH (nodeA:{source_node_label}) WHERE nodeA.{source_node_property} = $nodeA_property
-        MATCH (nodeB:{target_node_label}) WHERE nodeB.{target_node_property} = $nodeB_property
+        MATCH (nodeA:{source_node["label"]}) WHERE id(nodeA) = $nodeA_ID
+        MATCH (nodeB:{target_node["label"]}) WHERE id(nodeB) = $nodeB_ID
         CREATE (nodeA)-[relationship:{relationship_type}]->(nodeB)
         SET relationship.created_by = $created_by
         SET relationship.created_time = $created_time
@@ -296,8 +297,8 @@ async def create_relationship(source_node_label: str, source_node_property: str,
             parameters={
                 'created_by': current_user.username,
                 'created_time': str(datetime.now(timezone.utc)),
-                'nodeA_property': source_node_property_value,
-                'nodeB_property': target_node_property_value,
+                'nodeA_ID': source_node["id"],
+                'nodeB_ID': target_node["id"],
             },
         )
 
@@ -352,7 +353,80 @@ async def read_relationship(relationship_id: int):
                         target_node=target_node)
 
 
-# READ data about a relationship
+@router.get('/read_relationship_node_label/')
+async def read_relationship_node_label(node_id: int, _label: str):
+    cypher = f"""
+        MATCH (nodeA)-[relationship]->(n2:{_label})
+        WHERE id(nodeA) = {node_id}
+        RETURN nodeA, ID(nodeA), LABELS(nodeA), relationship, ID(relationship), TYPE(relationship), PROPERTIES(relationship)
+        """
+
+    with neo4j_driver.session() as session:
+        result = session.run(query=cypher)
+
+        relationship_data = result.data()
+
+    if len(relationship_data) < 0:
+        return -1
+
+    # Organise the data about the nodes in the relationship
+    source_node = Node(node_id=relationship_data["ID(nodeA)"],
+                       labels=relationship_data["LABELS(nodeA)"],
+                       properties=relationship_data["nodeA"])
+
+    target_node = Node(node_id=relationship_data["ID(nodeB)"],
+                       labels=relationship_data["LABELS(nodeB)"],
+                       properties=relationship_data["nodeB"])
+
+    # Return Relationship response
+    return Relationship(relationship_id=relationship_data["ID(relationship)"],
+                        relationship_type=relationship_data["TYPE(relationship)"],
+                        properties=relationship_data["PROPERTIES(relationship)"],
+                        source_node=source_node,
+                        target_node=target_node)
+
+
+@router.get('/read_relationship_btwn_node/')
+async def read_relationship_btwn_node(node_id1: int, node_id2: int):
+    cypher = """
+        MATCH (nodeA)-[relationship]->(nodeB)
+        WHERE id(nodeA) = $node1_id AND id(nodeB) = $node2_id
+        RETURN nodeA, ID(nodeA), LABELS(nodeA), relationship, ID(relationship), TYPE(relationship), nodeB, ID(nodeB), LABELS(nodeB), PROPERTIES(relationship)
+        """
+
+    with neo4j_driver.session() as session:
+        result = session.run(query=cypher,
+                             parameters={
+                                 'node1_id': node_id1,
+                                 'node2_id': node_id2,
+                             })
+
+        relationship_data = result.data()
+
+    if len(relationship_data) > 0:
+        relationship_data = relationship_data[0]
+    else:
+        return -1
+
+    # Organise the data about the nodes in the relationship
+    source_node = Node(node_id=relationship_data["ID(nodeA)"],
+                       labels=relationship_data["LABELS(nodeA)"],
+                       properties=relationship_data["nodeA"])
+
+    target_node = Node(node_id=relationship_data["ID(nodeB)"],
+                       labels=relationship_data["LABELS(nodeB)"],
+                       properties=relationship_data["nodeB"])
+
+    # Return Relationship response
+    return Relationship(relationship_id=relationship_data["ID(relationship)"],
+                        relationship_type=relationship_data["TYPE(relationship)"],
+                        properties=relationship_data["PROPERTIES(relationship)"],
+                        source_node=source_node,
+                        target_node=target_node)
+
+
+
+# Update data about a relationship
 @router.put('/update_relationship/{relationship_id}', response_model=Relationship)
 async def update_relationship(relationship_id: int, attributes: dict):
     cypher = """
@@ -422,4 +496,23 @@ async def delete_relationship(relationship_id: int):
     # Confirm deletion was completed by empty response
     return relationship_data or {
         'response': f'Relationship with ID: {relationship_id} was successfully deleted from the graph.'
+    }
+
+
+@router.post('/delete_all_relationship/{node_id}')
+async def delete_all_relationship(node_id: int):
+    cypher = """
+        MATCH (:Node {id: $node_id})-[r]-()
+        DELETE r
+        """
+
+    with neo4j_driver.session() as session:
+        result = session.run(query=cypher,
+                             parameters={'node_id': node_id})
+
+        relationship_data = result.data()
+
+    # Confirm deletion was completed by empty response
+    return relationship_data or {
+        'response': f'Relationship of node with ID: {node_id} were successfully deleted from the graph.'
     }

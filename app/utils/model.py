@@ -16,7 +16,8 @@ frWac_model_path = "https://dl.fbaipublicfiles.com/fasttext/vectors-crawl/cc.fr.
 # réduire le nombre de mots dans le paramètre limit=50 000 ## model = KeyedVectors.load_word2vec_format(
 # frWac_model_path, binary=False, limit=50000)
 print("======================================\nloading model...\n======================================")
-loaded_model = KeyedVectors.load_word2vec_format(frWac_model_path, binary=False, limit=50000)
+# loaded_model = KeyedVectors.load_word2vec_format(frWac_model_path, binary=False, limit=50000)
+loaded_model = None
 print("======================================\nmodel loaded\n======================================")
 
 # ## la nécessité de ré entrainer le modèle avec notre dataset est à étudier car ce n'est pas forcément
