@@ -7,7 +7,6 @@ from gensim.models import KeyedVectors
 # with three new word analogy datasets, for French, Hindi and Polish.
 
 # model = FastText.load_fasttext_format(model_path)  # ce modèle est trop gourmand en mémoire pour être utilisé
-
 frWac_model_path = "https://dl.fbaipublicfiles.com/fasttext/vectors-crawl/cc.fr.300.vec.gz"
 # ## vocabulaire limité à 50 000 mots, cela couvre une grande partie du vocabulaire courant et est souvent
 # suffisant pour de nombreuses applications. La plupart des mots fréquemment utilisés dans le langage quotidien,

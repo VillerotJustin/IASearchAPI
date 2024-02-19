@@ -188,6 +188,7 @@ def AISearch_part1(attributes):
     # Number of result
 
     data['n_result'] = attributes['n_result']
+    # TODO fix broken n_result
 
     # Similarity method
 
@@ -452,14 +453,14 @@ def AISearch_part4(df):
         # correspond à la similarité entre la requete utilisateur et elle meme qui vaut donc 1 et fausse le résultat
         # que l'on cherche en la mettant à 0 elle n'interfère plus avec le résultat de la meilleure recommandation
         # print (type(cosine_similarity)) print(cosine_similarity) print (cosine_similarity.shape)
-        top_n_resultat = 1
+        top_n_resultat = data['n_result']
 
         if data['method'] == 'TF-IDF+Word2Vec':
             tf_idf_Word2Vec_similarity_matrix = cosine_similarity(data['tfidf_matrix+Word2Vec'],
                                                                   data['tfidf_matrix+Word2Vec'])
             # print(cosine_similarity[-1,-1])
             tf_idf_Word2Vec_similarity_matrix[-1, -1] = 0
-            top_n_resultat = 4  # nombre de ressources recommandée
+            top_n_resultat = data['n_result']  # nombre de ressources recommandée
     elif data['similarity_method'] == "euclidean":
         # Calcul de similarité avec la distance euclidienne (inverse de la similarité)
         tf_idf_similarity_matrix = 1 / (1 + euclidean_distances(data['tfidf_matrix'],
@@ -467,28 +468,28 @@ def AISearch_part4(df):
         tf_idf_similarity_matrix[-1, -1] = 0
         # correspond à la similarité entre la requete utilisateur et elle meme qui vaut donc 1 et fausse le résultat
         # que l'on cherche
-        top_n_resultat = 1
+        top_n_resultat = data['n_result']
 
         if data['method'] == 'TF-IDF+Word2Vec':
             tf_idf_Word2Vec_similarity_matrix = 1 / (1 + euclidean_distances(data['tfidf_matrix+Word2Vec'],
                                                                              data['tfidf_matrix+Word2Vec']))
             # print(cosine_similarity[-1,-1])
             tf_idf_Word2Vec_similarity_matrix[-1, -1] = 0
-            top_n_resultat = 4  # nombre de ressources recommandé
+            top_n_resultat = data['n_result']  # nombre de ressources recommandé
     elif data['similarity_method'] == "dot":
         # Calcul de similarité avec le produit scalaire
         tf_idf_similarity_matrix = linear_kernel(data['tfidf_matrix'], data['tfidf_matrix'])
         tf_idf_similarity_matrix[-1, -1] = 0
         # correspond à la similarité entre la requete utilisateur et elle meme qui vaut donc 1 et fausse le résultat
         # que l'on cherche
-        top_n_resultat = 1
+        top_n_resultat = data['n_result']
 
         if data['method'] == 'TF-IDF+Word2Vec':
             tf_idf_Word2Vec_similarity_matrix = linear_kernel(data['tfidf_matrix+Word2Vec'],
                                                               data['tfidf_matrix+Word2Vec'])
             # print(cosine_similarity[-1,-1])
             tf_idf_Word2Vec_similarity_matrix[-1, -1] = 0
-            top_n_resultat = 4  # nombre de ressources recommandées
+            top_n_resultat = data['n_result']  # nombre de ressources recommandées
 
     # Affichage des résultats
 
@@ -499,7 +500,7 @@ def AISearch_part4(df):
             df,
             data['similarity_method'],
             tf_idf_similarity_matrix,
-            5
+            data['n_result']
         )
 
     if data['method'] == 'TF-IDF+Word2Vec':
@@ -511,7 +512,7 @@ def AISearch_part4(df):
                     df,
                     data['similarity_method'],
                     tf_idf_similarity_matrix,
-                    1
+                    data['n_result']
                 )
 
             # affichage des autres résultats de la méthode Word2Vec+TF_IDF
@@ -519,7 +520,7 @@ def AISearch_part4(df):
                 df,
                 data['similarity_method'],
                 tf_idf_Word2Vec_similarity_matrix,
-                top_n_resultat
+                data['n_result']
             )
 
 
@@ -608,3 +609,13 @@ def find_recommended_ressources(df, recommended_ressources_id_list):
     for id in recommended_ressources_id_list:
         recommended_ressources.append(df.iloc[id])
     data['recommended_ressources'] = recommended_ressources
+
+# No filters
+# {
+#  "": {
+#        Liste de texte a recommander
+#     },
+#     "Text_Client": "texte"
+# }
+
+# TODO route without filters

@@ -17,7 +17,10 @@ router = APIRouter()
 query = "CALL db.labels()"
 result = neo4j_driver.session().run(query=query)
 data = result.data()
-node_labels = data
+node_labels = []
+for label in data:
+    node_labels.append(label['label'])
+
 
 query = "CALL db.relationshipTypes()"
 result = neo4j_driver.session().run(query=query)
@@ -75,6 +78,8 @@ async def create_node(label: str, node_attributes: dict,
             detail="Operation not permitted, cannot create a User with this method.",
             headers={"WWW-Authenticate": "Bearer"})
 
+    print(label)
+    print(node_labels)
     # Check that node has an acceptable label
     if label not in node_labels:
         raise HTTPException(
@@ -89,15 +94,24 @@ async def create_node(label: str, node_attributes: dict,
                                 detail="Operation not permitted, you cannot modify those fields with this method.",
                                 headers={"WWW-Authenticate": "Bearer"})
 
-    unpacked_attributes = 'SET ' + ', '.join(f'new_node.{key}=\'{value}\'' for (key, value) in node_attributes.items())
+    unpacked_attributes =""
+    for (key, value) in node_attributes.items():
+        if value != None:
+            unpacked_attributes += f"\nSET new_node.{key} = "
+            if isinstance(value, str):
+                unpacked_attributes += f"\'{value}\' "
+            else:
+                unpacked_attributes += f"{value} "
 
-    cypher = f"""
-            CREATE (new_node:{label})\n'
-            SET new_node.created_by = $created_by\n'
-            SET new_node.created_time = $created_time\n'
-            {unpacked_attributes}\n
-            RETURN new_node, LABELS(new_node) as labels, ID(new_node) as id')
-            """
+    # unpacked_attributes = 'SET ' + ', '.join(f'new_node.{key}=\'{value}\'' for (key, value) in node_attributes.items())
+
+    cypher = f"CREATE (new_node:{label}) "
+    cypher += f"\nSET new_node.created_by = $created_by "
+    cypher += f"\nSET new_node.created_time = $created_time "
+    cypher += f"{unpacked_attributes}"
+    cypher += f"\nRETURN new_node, LABELS(new_node) as labels, ID(new_node) as id"
+
+    print(cypher)
 
     with neo4j_driver.session() as session:
         result = session.run(
@@ -169,7 +183,7 @@ async def read_nodes(search_node_property: str, node_property_value: str,
     cypher = f"""
         MATCH (node)
         WHERE node.{search_node_property} = '{node_property_value}'
-        RETURN ID(node) as id, LABELS(node) as labels, node')
+        RETURN ID(node) as id, LABELS(node) as labels, node;
         """
 
     with neo4j_driver.session() as session:
@@ -375,6 +389,24 @@ async def update_relationship(relationship_id: int, attributes: dict):
 # DELETE relationship in the graph
 @router.post('/delete_relationship/{relationship_id}')
 async def delete_relationship(relationship_id: int):
+    cypher = """
+            MATCH (nodeA)-[relationship]->(nodeB)
+            WHERE ID(relationship) = $rel_id
+            RETURN nodeA, ID(nodeA), LABELS(nodeA), relationship, ID(relationship), TYPE(relationship), nodeB, ID(nodeB), LABELS(nodeB), PROPERTIES(relationship)
+            """
+
+    with neo4j_driver.session() as session:
+        result = session.run(query=cypher,
+                             parameters={'rel_id': relationship_id})
+
+        relationship_data = len(result.data())
+
+    if relationship_data == 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Operation impossible, relationship doesn't exist.",
+            headers={"WWW-Authenticate": "Bearer"})
+
     cypher = """
         MATCH (a)-[relationship]->(b)
         WHERE ID(relationship) = $relationship_id
