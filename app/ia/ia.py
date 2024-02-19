@@ -144,117 +144,19 @@ def AISearch_part1(attributes):
     # Sélectionnez le label de la node symbolisant les ressources dans la base de donnée neo4j, c'est-à-dire les nœuds
     # avec un titre et une description comme champ de donnée de la ressource | Ressource = ['choix_node_ressource']
 
-    data['ressource'] = attributes['ressource']
-    data['ressource_id'] = attributes['ressource_id']
-    data['sub_ressource'] = attributes['sub_ressource']
+    # TODO Data check
 
-    # Sélectionnez les champs de donnée de la ressource pour vos filtres essentiels | ?
-
-    data['choice_of_resource_data_fields'] = attributes['choice_of_resource_data_fields']
-
-    # Sélectionnez le label des nœuds pour vos filtres essentiels (choisissez au moins 1 paramètre) : Filters
-
-    data['essential_filters'] = attributes['essential_filters']
-
-    # Choisir le nombre maximal de critères pour chaque donnée,
-    # c'est-à-dire le nombre de choix dans le menu déroulant pour chaque filtre essentiel :
-
-    data['nb_criteria_for_each_data'] = attributes['nb_criteria_for_each_data']
-    data['threshold_percentage_max_filter'] = attributes['threshold_percentage_max_filter']
-
-    # Sélectionnez le critère du filtre essentiel ns0__setSpec = PHY
-
-    data['filters_criteria'] = attributes['filters_criteria']
-
-    # check if no error in json and there is the good number of criteria
-    if len(data['filters_criteria']) != len(data['essential_filters']):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Invalid number of criteria",
-            headers={"WWW-Authenticate": "Bearer"})
-
-    data["WITH_RETURN"] = attributes['WITH_RETURN']
-    data['special_return'] = attributes['special_return']
-
-    # Entrez votre requête, insérez tous les mots que doit contenir la ressource qui correspond à vos besoins
-    # Recomandation → |la trajectoire de la courbe est parabolique| ← ['requete_utilisateur']
-
-    data['user_request'] = attributes['user_request']
-
-    # Methode de calcul = TF-IDF+Word2Vec
-
-    data['method'] = attributes['method']
-
-    # Number of result
-
-    data['n_result'] = attributes['n_result']
-    # TODO fix broken n_result
-
-    # Similarity method
-
-    data['similarity_method'] = attributes['similarity_method']
-    similarity_method_possible_value = ["cosine", "euclidean", "dot"]
-    if data['similarity_method'] not in similarity_method_possible_value:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid similarity method, possible values:{similarity_method_possible_value}",
-            headers={"WWW-Authenticate": "Bearer"})
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail=f"TODO",
+        headers={"WWW-Authenticate": "Bearer"})
 
 
 # Filter Ressource with filters
 def AISearch_part2():
     query = ""
-    last_filter = ""
-    for i in range(len(data['essential_filters'])):
-        print(f"Filter{i}")
-        print(data['essential_filters'][i])
-        print(data['filters_criteria'][i])
-        filteri = data['essential_filters'][i]
-        filter_criteria = data['filters_criteria'][i]
-        relationship = settings.DB_PREFIX + "has_" + filteri.replace(settings.DB_PREFIX, "")
-        filter_query = f"MATCH(ressource: {data['ressource']})-[: {relationship}]->(filtre{i}:{filteri})\nWHERE "
 
-        if last_filter != "":
-            filter_query += f"ressource IN {last_filter} AND ("
-
-        if len(filter_criteria) > 1:
-            filter_query += "("
-            for criteria in filter_criteria:
-                filter_query += f"(split(filtre{i}.uri, '#')[1] CONTAINS '{criteria}') OR "
-            filter_query = filter_query[:-4] + ")"
-        else:
-            filter_query += f"split(filtre{i}.uri, '#')[1] CONTAINS '{filter_criteria[0]}'"
-
-        if last_filter != "":
-            filter_query += ")"
-
-        filter_query += f"\nWITH collect(ressource) AS filter_{filteri}\n\n"
-        last_filter = f"filter_{filteri}"
-        query += filter_query
-
-    sub_ressource = (f"-[r: {settings.DB_PREFIX + 'has_' + data['sub_ressource'].replace(settings.DB_PREFIX, '')}]"
-                     f"->(taxon:{data['sub_ressource']})")
-
-    final_query = f"MATCH(ressource: {data['ressource']}){sub_ressource}\nWHERE ressource IN {last_filter}\n"
-
-    with_cypher = "WITH\n"
-    return_cypher = "RETURN\n"
-    i = 0
-    for element in data['WITH_RETURN']:
-        value = data['WITH_RETURN'][element]
-        # print(element, value)
-        with_cypher += f"    {element} AS {value}"
-        return_cypher += f"    {value}"
-        if i + 1 < len(data['WITH_RETURN']):
-            with_cypher += ",\n"
-            return_cypher += ",\n"
-        else:
-            with_cypher += "\n"
-        i += 1
-
-    final_query += with_cypher + return_cypher
-
-    query += final_query
+    # TODO Filter
 
     # print(f"query : \n{query}")
 
@@ -263,12 +165,20 @@ def AISearch_part2():
         data['filtered_node'] = query_result.data()
 
 
+def node_texte_concatenation(df):
+    # df['combined'] = df['title'] + ' ' + df['description']
+
+    # TODO Combine all relevant info in one big text
+
+    return df
+
+
 def AISearch_part3():
     data['final_stopwords_list'] = stopwords.words('french')
 
     df = pd.DataFrame.from_dict(data['filtered_node'])
 
-    df['combined'] = df['title'] + ' ' + df['description']
+    df = node_texte_concatenation(df)
 
     ###
     # ajout de la requête utilisateur dans le dataframe des ressources filtrées jusqu'à là pour comparer ces
@@ -295,16 +205,25 @@ def AISearch_part3():
             headers={"WWW-Authenticate": "Bearer"})
 
 
+def Clear_Text(text, complete=False):
+    text = make_lower_case(text)
+    text = remove_stop_words(text)
+    text = remove_punctuation(text)
+    text = remove_html(text)
+
+    if complete:
+        text = _removeNonAscii(text)
+        text = remove_letter_e_and_s_from_words(text)
+
+    return text
+
+
 def TF_IDF(df):
     # Applying all the functions and storing as a cleaned_desc remplace la colonne dans le dataframe contenant la
     # concaténation des données utilisés pour TF IDF au lieu d'en créer une nouvelle et de dédoubler nos données évite
     # d'avoir une nouvelle colonne dans le dataframe pour alléger le nombre de données
-    df['combined'] = df['combined'].apply(_removeNonAscii)
-    df['combined'] = df['combined'].apply(func=make_lower_case)
-    df['combined'] = df['combined'].apply(func=remove_stop_words)
-    df['combined'] = df['combined'].apply(func=remove_punctuation)
-    df['combined'] = df['combined'].apply(func=remove_html)
-    df['combined'] = df['combined'].apply(func=remove_letter_e_and_s_from_words)
+
+    df['combined'] = Clear_Text(df['combined'], True)
 
     # print(f" Dataset des description nettoyées : \n\n {df['combined']}") # les accents sont aussi enlevé
     # print(f" Dataset des description nettoyées : \n\n {df['cleaned_desc']}") # les accents sont aussi enlevé
@@ -333,10 +252,7 @@ def TF_IDF_Word2Vec(df):
     # Word2vec permet d'avoir une certaine compréhension du contexte de la phrase donc il ne faut pas dénaturer les
     # textes de notre dataframe st.session_state['df']['combined'] = st.session_state['df']['combined'].apply(
     # _removeNonAscii)
-    df['combined'] = df.combined.apply(func=make_lower_case)
-    df['combined'] = df.combined.apply(func=remove_stop_words)
-    df['combined'] = df.combined.apply(func=remove_punctuation)
-    df['combined'] = df.combined.apply(func=remove_html)
+    df['combined'] = Clear_Text(df['combined'], False)
 
     # Pas besoin de charger le model, il est chargé au lancement de l'appli
 
@@ -609,13 +525,3 @@ def find_recommended_ressources(df, recommended_ressources_id_list):
     for id in recommended_ressources_id_list:
         recommended_ressources.append(df.iloc[id])
     data['recommended_ressources'] = recommended_ressources
-
-# No filters
-# {
-#  "": {
-#        Liste de texte a recommander
-#     },
-#     "Text_Client": "texte"
-# }
-
-# TODO route without filters
