@@ -25,7 +25,10 @@ async def cypher_query(attributes: dict):
     if attributes["cypher_string"] is not None and attributes["cypher_string"] != "":
         with neo4j_driver.session() as session:
             response = session.run(query=attributes["cypher_string"])
-            return Query(response=response.data())
+            data = response.data()
+            print(data)
+            # print(Query(response=data))
+            return Query(response=data)
     else:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

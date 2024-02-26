@@ -73,7 +73,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 # Decrypt the token and retrieve the username from payload
 async def get_current_user(token: str = Depends(oauth2_scheme)):
-    # print(oauth2_scheme)
+    print("get_current_user")
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -97,6 +97,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 async def get_current_active_user(
     current_user: Annotated[User, Depends(get_current_user)]
 ):
+    print("get_current_active_user")
     if current_user.disabled:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
@@ -104,6 +105,7 @@ async def get_current_active_user(
 # Endpoint for token authorisation
 @router.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    print("Connection Get tokent")
     user = authenticate_user(form_data.username, form_data.password)
     if not user:
         raise HTTPException(
