@@ -21,7 +21,6 @@ node_labels = []
 for label in data:
     node_labels.append(label['label'])
 
-
 query = "CALL db.relationshipTypes()"
 result = neo4j_driver.session().run(query=query)
 data = result.data()
@@ -94,11 +93,13 @@ async def create_node(label: str, node_attributes: dict,
                                 detail="Operation not permitted, you cannot modify those fields with this method.",
                                 headers={"WWW-Authenticate": "Bearer"})
 
-    unpacked_attributes =""
+    unpacked_attributes = ""
     for (key, value) in node_attributes.items():
         if value != None:
             unpacked_attributes += f"\nSET new_node.{key} = "
             if isinstance(value, str):
+                # protected_string = original_string.replace("'", "\\'")
+                value = value.replace("'", "\\'")
                 unpacked_attributes += f"\'{value}\' "
             else:
                 unpacked_attributes += f"{value} "
@@ -260,7 +261,9 @@ async def create_relationship(attributes: dict, current_user: User = Depends(get
     relationship_type = attributes['relationship_type']
     relationship_attributes = attributes['relationship_attributes']
     source_node = attributes['source_node']
+    print(source_node)
     target_node = attributes['target_node']
+    print(target_node)
 
     # Check that relationship has an acceptable type
     # if relationship_type not in relationship_types:
@@ -277,19 +280,20 @@ async def create_relationship(attributes: dict, current_user: User = Depends(get
                                 headers={"WWW-Authenticate": "Bearer"})
 
     if relationship_attributes:
-        unpacked_attributes = 'SET ' + ', '.join(f'relationship.{key}=\'{value}\'' for (key, value) in relationship_attributes.items())
+        unpacked_attributes = 'SET ' + ', '.join(
+            f'relationship.{key}=\'{value}\'' for (key, value) in relationship_attributes.items())
+        unpacked_attributes += '\n'
     else:
         unpacked_attributes = ''
 
-    cypher = f"""
-        MATCH (nodeA:{source_node["label"]}) WHERE id(nodeA) = $nodeA_ID
-        MATCH (nodeB:{target_node["label"]}) WHERE id(nodeB) = $nodeB_ID
-        CREATE (nodeA)-[relationship:{relationship_type}]->(nodeB)
-        SET relationship.created_by = $created_by
-        SET relationship.created_time = $created_time
-        {unpacked_attributes}
-        RETURN nodeA, nodeB, LABELS(nodeA), LABELS(nodeB), ID(nodeA), ID(nodeB), ID(relationship), TYPE(relationship), PROPERTIES(relationship)
-        """
+    cypher = f"""MATCH (nodeA:{source_node["label"]}) WHERE id(nodeA) = $nodeA_ID\n"""
+    cypher += f"""MATCH (nodeB:{target_node["label"]}) WHERE id(nodeB) = $nodeB_ID\n"""
+    cypher += f"""CREATE (nodeA)-[relationship:{relationship_type}]->(nodeB)\n"""
+    cypher += f"""SET relationship.created_by = $created_by\n"""
+    cypher += f"""SET relationship.created_time = $created_time\n"""
+    cypher += f"{unpacked_attributes}"
+    cypher += (f"RETURN nodeA, nodeB, LABELS(nodeA), LABELS(nodeB), ID(nodeA), ID(nodeB), ID(relationship), "
+               f"TYPE(relationship), PROPERTIES(relationship)\n")
 
     with neo4j_driver.session() as session:
         result = session.run(
@@ -302,24 +306,31 @@ async def create_relationship(attributes: dict, current_user: User = Depends(get
             },
         )
 
-        relationship_data = result.data()[0]
+        relationship_data = result.data()
+    print("result data: ")
+    print(relationship_data)
+    if len(relationship_data) > 0:
+        relationship_data = relationship_data[0]
 
-    # Organise the data about the nodes in the relationship
-    source_node = Node(node_id=relationship_data['ID(nodeA)'],
-                       labels=relationship_data['LABELS(nodeA)'],
-                       properties=relationship_data['nodeA'])
+        # Organise the data about the nodes in the relationship
+        source_node = Node(node_id=relationship_data['ID(nodeA)'],
+                           labels=relationship_data['LABELS(nodeA)'],
+                           properties=relationship_data['nodeA'])
 
-    target_node = Node(node_id=relationship_data['ID(nodeB)'],
-                       labels=relationship_data['LABELS(nodeB)'],
-                       properties=relationship_data['nodeB'])
+        target_node = Node(node_id=relationship_data['ID(nodeB)'],
+                           labels=relationship_data['LABELS(nodeB)'],
+                           properties=relationship_data['nodeB'])
 
-    # Return Relationship response
-    return Relationship(relationship_id=relationship_data['ID(relationship)'],
-                        relationship_type=relationship_data['TYPE(relationship)'],
-                        properties=relationship_data['PROPERTIES(relationship)'],
-                        source_node=source_node,
-                        target_node=target_node)
-
+        # Return Relationship response
+        return Relationship(relationship_id=relationship_data['ID(relationship)'],
+                            relationship_type=relationship_data['TYPE(relationship)'],
+                            properties=relationship_data['PROPERTIES(relationship)'],
+                            source_node=source_node,
+                            target_node=target_node)
+    else:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Error while creating the relationship.",
+                            headers={"WWW-Authenticate": "Bearer"})
 
 # READ data about a relationship
 @router.get('/read_relationship/{relationship_id}', response_model=Relationship)
@@ -425,7 +436,6 @@ async def read_relationship_btwn_node(node_id1: int, node_id2: int):
                         target_node=target_node)
 
 
-
 # Update data about a relationship
 @router.put('/update_relationship/{relationship_id}', response_model=Relationship)
 async def update_relationship(relationship_id: int, attributes: dict):
@@ -500,9 +510,10 @@ async def delete_relationship(relationship_id: int):
 
 
 @router.post('/delete_all_relationship/{node_id}')
-async def delete_all_relationship(node_id: int):
-    cypher = """
-        MATCH (:Node {id: $node_id})-[r]-()
+async def delete_all_relationship(node_id: int, attributes: dict):
+    cypher = f"""
+        MATCH (n:{attributes['label']})-[r]-()
+        WHERE ID(n) = $node_id
         DELETE r
         """
 
