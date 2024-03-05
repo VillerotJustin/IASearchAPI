@@ -19,6 +19,11 @@ from app.utils.db import neo4j_driver
 from app.utils.environment import settings
 from app.utils.model import loaded_model
 
+
+
+from pprint import pprint
+
+
 # Set the API Router
 router = APIRouter()
 
@@ -126,14 +131,15 @@ async def AISearch(attributes: dict):
     # Filtering nodes
     AISearch_part2()
 
+    if len(data['filtered_node']) <= data['n_result']:
+        data['n_result'] = len(data['filtered_node'])
+
     # Recommandation Setup
     df = AISearch_part3()
 
     # Recommandation Calculation
     AISearch_part4(df)
-    # print("pre return")
-    # print(len(data["recommended_ressources"]))
-    # print(data["recommended_ressources"])
+
     return {
         "number_of_results": len(data["recommended_ressources"]),
         "result": data["recommended_ressources"]
@@ -143,22 +149,83 @@ async def AISearch(attributes: dict):
 def AISearch_part1(attributes):
     # Sélectionnez le label de la node symbolisant les ressources dans la base de donnée neo4j, c'est-à-dire les nœuds
     # avec un titre et une description comme champ de donnée de la ressource | Ressource = ['choix_node_ressource']
+    # {
+    #   "start": "2024-02-26",
+    #   "end": "2024-02-29",
+    #   "destination": "ville",
+    #   "number_person": 3,
+    #   "user_request": "Maison bien éclairée, accessible aux personnes fauteuil roulant."
+    # }
 
-    # TODO Data check
+    data['n_result'] = attributes['n_result']
+    if not isinstance(data['n_result'], int):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Number of result not an instance of int",
+            headers={"WWW-Authenticate": "Bearer"})
 
-    raise HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        detail=f"TODO",
-        headers={"WWW-Authenticate": "Bearer"})
+    data['number_person'] = attributes['number_person']
+    if not isinstance(data['number_person'], int):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Number of person not an instance of int",
+            headers={"WWW-Authenticate": "Bearer"})
+
+    data['user_request'] = attributes['user_request']
+    if not isinstance(data['user_request'], str):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"User Request not an instance of str",
+            headers={"WWW-Authenticate": "Bearer"})
+
+    data['destination'] = attributes['destination']
+    if not isinstance(data['destination'], str):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Destination not an instance of str",
+            headers={"WWW-Authenticate": "Bearer"})
+
+    data['start'] = attributes['start']
+    data['end'] = attributes['end']
+    date_pattern_str = r'^\d{4}-\d{2}-\d{2}$'
+    if not re.match(date_pattern_str, data['start']) or not re.match(date_pattern_str, data['end']):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Start or end date is not formated using the following format: dd-mm-yyyy",
+            headers={"WWW-Authenticate": "Bearer"})
+
+    data['method'] = attributes['method']
+    similarity_method_possible_value = ["TF-IDF", "TF-IDF+Word2Vec"]
+    if data['method'] not in similarity_method_possible_value:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid method, possible values:{similarity_method_possible_value}",
+            headers={"WWW-Authenticate": "Bearer"})
+
+    data['similarity_method'] = attributes['similarity_method']
+    similarity_method_possible_value = ["cosine", "euclidean", "dot"]
+    if data['similarity_method'] not in similarity_method_possible_value:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid similarity method, possible values:{similarity_method_possible_value}",
+            headers={"WWW-Authenticate": "Bearer"})
 
 
 # Filter Ressource with filters
 def AISearch_part2():
-    query = ""
+    query = f"""
+    MATCH (l: logement)-[r]-(m)
+    WHERE NOT EXISTS {{
+        MATCH(l) - [r: is_located_by]->(c:client)
+        WHERE(date("{data['start']}") > date(r.start) AND date("{data['start']}") < date(r.end))
+        OR(date("{data['end']}") > date(r.start) AND date("{data['end']}") < date(r.end))
+    }}
+    AND l.Ville CONTAINS "{data['destination']}"
+    AND toInteger(l.Nombre_personnes) > {data['number_person']}
+    RETURN DISTINCT l AS nodes, collect(r) AS relations, collect(m) AS external_nodes;
+    """
 
-    # TODO Filter
-
-    # print(f"query : \n{query}")
+    # print(query)
 
     with neo4j_driver.session() as session:
         query_result = session.run(query=query)
@@ -168,7 +235,38 @@ def AISearch_part2():
 def node_texte_concatenation(df):
     # df['combined'] = df['title'] + ' ' + df['description']
 
-    # TODO Combine all relevant info in one big text
+    # pprint(data['filtered_node'])
+    # print("============================================================")
+    i = 0
+    nodes_info = []
+    for node in df['nodes']:
+        # print()
+        # print(node)
+        # print()
+        relations = df['relations'][i]
+        external_nodes = df['external_nodes'][i]
+        node_properties_string = ""
+        for property_key in node:
+            if isinstance(node[property_key], str):
+                node_properties_string += node[property_key] + ' '
+        # print(node_properties_string)
+        ex_node_string = ""
+        for ex_node in external_nodes:
+            # print()
+            # print(ex_node)
+            for key in ex_node:
+                if key != "created_time" and key != "created_by" and key != "ID_":
+                    if isinstance(ex_node[key], str):
+                        ex_node_string += ex_node[key] + ' '
+        # print(ex_node_string)
+
+        final_string = node_properties_string + ex_node_string
+
+        nodes_info.append(final_string)
+
+        i += 1
+
+    df['combined'] = nodes_info
 
     return df
 
@@ -177,8 +275,16 @@ def AISearch_part3():
     data['final_stopwords_list'] = stopwords.words('french')
 
     df = pd.DataFrame.from_dict(data['filtered_node'])
-
+    # df['properties'] = pd.DataFrame.from_dict(df['properties'])
+    # df['relations'] = pd.DataFrame.from_dict(df['relations'])
+    # df['nodes'] = pd.DataFrame.from_dict(df['nodes'])
+    # print(df['properties'])
+    # print(df['relations'])
+    # print(df['nodes'])
     df = node_texte_concatenation(df)
+    # print(df)
+    # print()
+    # print(df['combined'])
 
     ###
     # ajout de la requête utilisateur dans le dataframe des ressources filtrées jusqu'à là pour comparer ces
@@ -205,17 +311,17 @@ def AISearch_part3():
             headers={"WWW-Authenticate": "Bearer"})
 
 
-def Clear_Text(text, complete=False):
-    text = make_lower_case(text)
-    text = remove_stop_words(text)
-    text = remove_punctuation(text)
-    text = remove_html(text)
+def Clear_Text(df, complete=False):
+    df['combined'] = df['combined'].apply(make_lower_case)
+    df['combined'] = df['combined'].apply(remove_stop_words)
+    df['combined'] = df['combined'].apply(remove_punctuation)
+    df['combined'] = df['combined'].apply(remove_html)
 
     if complete:
-        text = _removeNonAscii(text)
-        text = remove_letter_e_and_s_from_words(text)
+        df['combined'] = df['combined'].apply(_removeNonAscii)
+        df['combined'] = df['combined'].apply(remove_letter_e_and_s_from_words)
 
-    return text
+    return df
 
 
 def TF_IDF(df):
@@ -223,7 +329,7 @@ def TF_IDF(df):
     # concaténation des données utilisés pour TF IDF au lieu d'en créer une nouvelle et de dédoubler nos données évite
     # d'avoir une nouvelle colonne dans le dataframe pour alléger le nombre de données
 
-    df['combined'] = Clear_Text(df['combined'], True)
+    df = Clear_Text(df, True)
 
     # print(f" Dataset des description nettoyées : \n\n {df['combined']}") # les accents sont aussi enlevé
     # print(f" Dataset des description nettoyées : \n\n {df['cleaned_desc']}") # les accents sont aussi enlevé
@@ -252,7 +358,7 @@ def TF_IDF_Word2Vec(df):
     # Word2vec permet d'avoir une certaine compréhension du contexte de la phrase donc il ne faut pas dénaturer les
     # textes de notre dataframe st.session_state['df']['combined'] = st.session_state['df']['combined'].apply(
     # _removeNonAscii)
-    df['combined'] = Clear_Text(df['combined'], False)
+    df = Clear_Text(df, False)
 
     # Pas besoin de charger le model, il est chargé au lancement de l'appli
 
@@ -455,15 +561,15 @@ def pick_recomandation(df, similarity_method, similarity_matrix, n_best_results)
     # Trie la dernière ligne en fonction des indices triés
     sorted_last_row = last_row[sorted_indices]
 
-    print("Dernière ligne triée :", sorted_last_row)
-    print("Indices d'origine triés :", sorted_indices)
+    # print("Dernière ligne triée :", sorted_last_row)
+    # print("Indices d'origine triés :", sorted_indices)
     # print(sorted_last_row[0])
 
-    print(f"Nom de la technique pour calculé la similarité utilisé : {similarity_method} \n ")
+    # print(f"Nom de la technique pour calculé la similarité utilisé : {similarity_method} \n ")
 
-    print(f"similarity matric = {similarity_matrix}")
-    print(f"Dernière ligne triée = {sorted_last_row}")
-    print(f"liste indices trié = {sorted_indices}")
+    # print(f"similarity matric = {similarity_matrix}")
+    # print(f"Dernière ligne triée = {sorted_last_row}")
+    # print(f"liste indices trié = {sorted_indices}")
 
     recommended_ressources = []
 

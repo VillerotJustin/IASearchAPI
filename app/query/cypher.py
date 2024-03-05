@@ -27,7 +27,6 @@ async def cypher_query(attributes: dict):
             response = session.run(query=attributes["cypher_string"])
             data = response.data()
             print(data)
-            # print(Query(response=data))
             return Query(response=data)
     else:
         raise HTTPException(
