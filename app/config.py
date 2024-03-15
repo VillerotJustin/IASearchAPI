@@ -3,6 +3,5 @@ api = {
     "port": 8000,
     "reload": False,
     "workers": 1,
-    "log_level": "info",
-    "debug": False
+    "log_level": "info"
 }
