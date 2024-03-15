@@ -2,15 +2,15 @@
 from fastapi import FastAPI, Depends
 
 # Internal packages
-from .authorisation import auth
-from .authorisation.auth import get_current_active_user
-from .ia import ia
-from .user_management import users
-from .graph import crud
-from .query import cypher
-from .server import test_server
-from .utils.environment import settings
-from .utils.model import loaded_model
+from authorisation import auth
+from authorisation.auth import get_current_active_user
+from ia import ia
+from user_management import users
+from graph import crud
+from query import cypher
+from server import test_server
+from utils.environment import settings
+from utils.model import loaded_model
 
 frWac_model = loaded_model
 
