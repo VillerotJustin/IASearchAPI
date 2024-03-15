@@ -1,5 +1,6 @@
 # Import modules from FastAPI
 import configparser
+import datetime
 import re
 
 # Other Libs
@@ -13,16 +14,16 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.metrics.pairwise import linear_kernel
 from starlette import status
+from pydantic import BaseModel
+from typing import Annotated
+from fastapi import Body
 
 # Import internal utilities for database access, authorisation, and schemas
 from app.utils.db import neo4j_driver
 from app.utils.environment import settings
 from app.utils.model import loaded_model
 
-
-
 from pprint import pprint
-
 
 # Set the API Router
 router = APIRouter()
@@ -121,10 +122,30 @@ data['property_keys'] = get_every_property_keys_no_async()
 
 
 # Matières = ns0__setSpec
+class AISearchAttributes(BaseModel):
+    destination: str = "Paris"
+    start: str = "2024-03-01"
+    end: str = "2024-03-05"
+    number_person: int = 3
+    n_result: int = 30
+    method: str = "TF-IDF OR TF-IDF+Word2Vec"
+    similarity_method: str = "cosine OR euclidean OR dot"
+    user_request: str = "Appartement lumineux, accessible PMR, larges couloirs et de plain-pied, grande douche avec adaptation."
+
+
+class AISearchResult(BaseModel):
+    number_of_results: int
+    result: dict
+
 
 # API request
-@router.post('/search')
-async def AISearch(attributes: dict):
+@router.post('/search',
+             summary="Recomandation enhanced by AI",
+             responses={200: {
+                 "number_of_results": 1,
+                 "result": []
+             }})
+async def AISearch(attributes: AISearchAttributes):
     # Parameter Recovery
     AISearch_part1(attributes)
 
@@ -133,6 +154,12 @@ async def AISearch(attributes: dict):
 
     if len(data['filtered_node']) <= data['n_result']:
         data['n_result'] = len(data['filtered_node'])
+
+    if len(data['filtered_node']) == 0:
+        return {
+            "number_of_results": 0,
+            "result": data['filtered_node']
+        }
 
     # Recommandation Setup
     df = AISearch_part3()
@@ -157,54 +184,62 @@ def AISearch_part1(attributes):
     #   "user_request": "Maison bien éclairée, accessible aux personnes fauteuil roulant."
     # }
 
-    data['n_result'] = attributes['n_result']
+    data['n_result'] = attributes.n_result
     if not isinstance(data['n_result'], int):
+        print("n_result not int")
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Number of result not an instance of int",
             headers={"WWW-Authenticate": "Bearer"})
 
-    data['number_person'] = attributes['number_person']
+    data['number_person'] = attributes.number_person
     if not isinstance(data['number_person'], int):
+        print("Number of person not an instance of int")
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Number of person not an instance of int",
             headers={"WWW-Authenticate": "Bearer"})
 
-    data['user_request'] = attributes['user_request']
+    data['user_request'] = attributes.user_request
     if not isinstance(data['user_request'], str):
+        print("User Request not an instance of str")
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"User Request not an instance of str",
             headers={"WWW-Authenticate": "Bearer"})
 
-    data['destination'] = attributes['destination']
+    data['destination'] = attributes.destination
     if not isinstance(data['destination'], str):
+        print("Destination not an instance of str")
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Destination not an instance of str",
             headers={"WWW-Authenticate": "Bearer"})
 
-    data['start'] = attributes['start']
-    data['end'] = attributes['end']
-    date_pattern_str = r'^\d{4}-\d{2}-\d{2}$'
-    if not re.match(date_pattern_str, data['start']) or not re.match(date_pattern_str, data['end']):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Start or end date is not formated using the following format: dd-mm-yyyy",
-            headers={"WWW-Authenticate": "Bearer"})
+    data['start'] = attributes.start
+    data['end'] = attributes.end
+    if data['start'] != "" or data['end'] != "":
+        date_pattern_str = r'^\d{4}-\d{2}-\d{2}$'
+        if not re.match(date_pattern_str, data['start']) or not re.match(date_pattern_str, data['end']):
+            print("Start or end date is not formated using the following format: dd-mm-yyyy")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Start or end date is not formated using the following format: dd-mm-yyyy",
+                headers={"WWW-Authenticate": "Bearer"})
 
-    data['method'] = attributes['method']
+    data['method'] = attributes.method
     similarity_method_possible_value = ["TF-IDF", "TF-IDF+Word2Vec"]
     if data['method'] not in similarity_method_possible_value:
+        print("Invalid method, possible values:{similarity_method_possible_value}")
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Invalid method, possible values:{similarity_method_possible_value}",
             headers={"WWW-Authenticate": "Bearer"})
 
-    data['similarity_method'] = attributes['similarity_method']
+    data['similarity_method'] = attributes.similarity_method
     similarity_method_possible_value = ["cosine", "euclidean", "dot"]
     if data['similarity_method'] not in similarity_method_possible_value:
+        print("Invalid similarity method, possible values:{similarity_method_possible_value}")
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Invalid similarity method, possible values:{similarity_method_possible_value}",
@@ -213,19 +248,37 @@ def AISearch_part1(attributes):
 
 # Filter Ressource with filters
 def AISearch_part2():
-    query = f"""
-    MATCH (l: logement)-[r]-(m)
-    WHERE NOT EXISTS {{
+
+    disponibilies = ""
+    if data['start'] != "" and data['end'] != "":
+        disponibilies = f"""NOT EXISTS {{
         MATCH(l) - [r: is_located_by]->(c:client)
         WHERE(date("{data['start']}") > date(r.start) AND date("{data['start']}") < date(r.end))
         OR(date("{data['end']}") > date(r.start) AND date("{data['end']}") < date(r.end))
-    }}
-    AND l.Ville CONTAINS "{data['destination']}"
-    AND toInteger(l.Nombre_personnes) > {data['number_person']}
-    RETURN DISTINCT l AS nodes, collect(r) AS relations, collect(m) AS external_nodes;
-    """
+    }}"""
 
-    # print(query)
+    location = ""
+    if data['destination'] != "":
+        if disponibilies != "":
+            location = "AND"
+        location += f""" l.Ville CONTAINS "{data['destination']}" """
+
+    Nombre_personnes = ""
+    if data['number_person'] != "":
+        if disponibilies != "" or location != "":
+            Nombre_personnes = "AND"
+        Nombre_personnes += f""" toInteger(l.Nombre_personnes) > {data['number_person']} """
+
+    if disponibilies != "" or location != "" or Nombre_personnes != "":
+        disponibilies = "WHERE " + disponibilies
+
+    query = f"""MATCH (l: logement)-[r]-(m)
+    {disponibilies}
+    {location}
+    {Nombre_personnes}
+    RETURN DISTINCT l AS nodes, collect(r) AS relations, collect(m) AS external_nodes;"""
+
+    print(query)
 
     with neo4j_driver.session() as session:
         query_result = session.run(query=query)

@@ -14,6 +14,10 @@ from app.utils.model import loaded_model
 
 frWac_model = loaded_model
 
+
+######################
+# Fast API
+######################
 app = FastAPI(
     title=settings.APP_NAME,
     description=settings.APP_DESC,
@@ -22,6 +26,9 @@ app = FastAPI(
     redoc_url=settings.REDOC_URL
 )
 
+#####################
+# Endpoints
+#####################
 app.include_router(
     test_server.router,
     prefix='/test',

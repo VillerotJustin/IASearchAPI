@@ -66,6 +66,9 @@ async def get_all_property_keys(label: str):
 
 
 # NODES
+from pydantic import BaseModel
+
+
 # CREATE new node
 @router.post('/create_node', response_model=Node)
 async def create_node(label: str, node_attributes: dict,
@@ -259,7 +262,9 @@ async def delete_node(node_id: int):
 @router.post('/create_relationship', response_model=Relationship)
 async def create_relationship(attributes: dict, current_user: User = Depends(get_current_active_user)):
     relationship_type = attributes['relationship_type']
+    print(relationship_type)
     relationship_attributes = attributes['relationship_attributes']
+    print(relationship_attributes)
     source_node = attributes['source_node']
     print(source_node)
     target_node = attributes['target_node']
@@ -508,8 +513,7 @@ async def delete_relationship(relationship_id: int):
         'response': f'Relationship with ID: {relationship_id} was successfully deleted from the graph.'
     }
 
-
-@router.post('/delete_all_relationship/{node_id}')
+@router.post('/delete_all_relationship/{node_id}', summary="Delete all relationship of the node of given ID, Node Label in request body")
 async def delete_all_relationship(node_id: int, attributes: dict):
     cypher = f"""
         MATCH (n:{attributes['label']})-[r]-()

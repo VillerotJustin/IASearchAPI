@@ -18,7 +18,7 @@ router = APIRouter()
 
 
 # Query endpoint
-@router.post('/q', response_model=Query, summary='Query the database with a custom Cypher string')
+@router.post('/q', response_model=Query, summary='Query the database with a custom Cypher string in the request body')
 async def cypher_query(attributes: dict):
     print(attributes)
     # print(attributes["cypher_string"])
