@@ -1,4 +1,4 @@
-import api as api
+import api
 import uvicorn
 import sys
 import traceback

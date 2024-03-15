@@ -1,6 +1,5 @@
 # Import main FastAPI modules
 from fastapi import FastAPI, Depends
-import uvicorn
 
 # Internal packages
 from app.authorisation import auth
