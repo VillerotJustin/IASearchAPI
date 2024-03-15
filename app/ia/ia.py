@@ -19,8 +19,8 @@ from typing import Annotated
 from fastapi import Body
 
 # Import internal utilities for database access, authorisation, and schemas
-from ..utils.db import neo4j_driver
-from ..utils.model import loaded_model
+from utils.db import neo4j_driver
+from utils.model import loaded_model
 
 from pprint import pprint
 
