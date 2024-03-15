@@ -17,6 +17,8 @@ from ..utils.environment import Config
 from ..utils.db import neo4j_driver
 from ..utils.schema import Token, TokenData, User, UserInDB
 
+import sys
+sys.path.append("..")
 
 # Set the API Router
 router = APIRouter()
