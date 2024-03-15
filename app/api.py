@@ -2,7 +2,7 @@
 from fastapi import FastAPI, Depends
 
 # Internal packages
-from app.authorisation import auth
+from .authorisation import auth
 from .authorisation.auth import get_current_active_user
 from .ia import ia
 from .user_management import users
