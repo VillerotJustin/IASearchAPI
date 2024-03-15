@@ -16,9 +16,9 @@ import sys
 sys.path.append("..")
 
 # Import utilities functions, configuration and schemas
-from app.utils.environment import Config
-from app.utils.db import neo4j_driver
-from app.utils.schema import Token, TokenData, User, UserInDB
+from ..utils.environment import Config
+from ..utils.db import neo4j_driver
+from ..utils.schema import Token, TokenData, User, UserInDB
 
 # Set the API Router
 router = APIRouter()
