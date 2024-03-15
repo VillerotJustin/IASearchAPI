@@ -5,9 +5,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 
 # Import internal utilities for database access, authorisation, and schemas
-from app.utils.db import neo4j_driver
-from app.authorisation.auth import get_current_active_user
-from app.utils.schema import User, Node, Nodes, Relationship
+from ..utils.db import neo4j_driver
+from ..authorisation.auth import get_current_active_user
+from ..utils.schema import User, Node, Nodes, Relationship
 
 # Set the API Router
 router = APIRouter()

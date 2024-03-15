@@ -5,8 +5,8 @@ from fastapi import APIRouter
 from graphdatascience import GraphDataScience
 
 # Internal
-from app.utils.environment import settings
-from app.utils.db import neo4j_driver
+from ..utils.environment import settings
+from ..utils.db import neo4j_driver
 
 # Set the API Router
 router = APIRouter()
