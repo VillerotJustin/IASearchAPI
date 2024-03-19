@@ -1,4 +1,5 @@
 from gensim.models import KeyedVectors
+from environment import settings
 
 # https://fasttext.cc/docs/en/crawl-vectors.html
 # pre-trained word vectors for 157 languages, trained on Common Crawl and Wikipedia
@@ -6,8 +7,13 @@ from gensim.models import KeyedVectors
 # in dimension 300, with character n-grams of length 5, a window of size 5 and 10 negatives.
 # with three new word analogy datasets, for French, Hindi and Polish.
 
+if settings.LOAD_LOCAL_MODEL:
+    frWac_model_path = "file://"+"../Models/cc.fr.300.vec"
+else:
+    frWac_model_path = "https://dl.fbaipublicfiles.com/fasttext/vectors-crawl/cc.fr.300.vec.gz"
+
 # model = FastText.load_fasttext_format(model_path)  # ce modèle est trop gourmand en mémoire pour être utilisé
-frWac_model_path = "https://dl.fbaipublicfiles.com/fasttext/vectors-crawl/cc.fr.300.vec.gz"
+
 # ## vocabulaire limité à 50 000 mots, cela couvre une grande partie du vocabulaire courant et est souvent
 # suffisant pour de nombreuses applications. La plupart des mots fréquemment utilisés dans le langage quotidien,
 # ainsi que beaucoup de termes spécialisés, sont généralement inclus dans un modèle avec un vocabulaire de cette

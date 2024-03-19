@@ -25,8 +25,8 @@ mkdir ../neo4j_data
 mkdir neo4j_plugins
 printf "\n./neo4j_plugins/\n" >> .dockerignore
 cd neo4j_plugins
-wget "https://github.com/neo4j-labs/neosemantics/releases/download/5.15.0/neosemantics-5.15.0.jar"
-wget "https://github.com/neo4j/graph-data-science/releases/download/2.5.7/neo4j-graph-data-science-2.5.7.jar"
+  wget "https://github.com/neo4j-labs/neosemantics/releases/download/5.15.0/neosemantics-5.15.0.jar"
+  wget "https://github.com/neo4j/graph-data-science/releases/download/2.5.7/neo4j-graph-data-science-2.5.7.jar"
 cd ..
 docker run -d --name neo4j-container -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=$username/$password -v neo4j_data:$(readlink -f ../neo4j_data) --volume=$HOME/neo4j/plugins:$(readlink -f ./neo4j_plugins) neo4j:latest
 
