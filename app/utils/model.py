@@ -1,5 +1,5 @@
 from gensim.models import KeyedVectors
-from environment import settings
+from utils.environment import settings
 
 # https://fasttext.cc/docs/en/crawl-vectors.html
 # pre-trained word vectors for 157 languages, trained on Common Crawl and Wikipedia
