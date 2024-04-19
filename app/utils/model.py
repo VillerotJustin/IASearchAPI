@@ -6,10 +6,12 @@ from utils.environment import settings
 # using fastText. These models were trained using CBOW with position-weights,
 # in dimension 300, with character n-grams of length 5, a window of size 5 and 10 negatives.
 # with three new word analogy datasets, for French, Hindi and Polish.
-
+print(settings.LOAD_LOCAL_MODEL)
 if settings.LOAD_LOCAL_MODEL:
+    print("Load local Model")
     frWac_model_path = "file://"+"../Models/cc.fr.300.vec"
 else:
+    print("Load distant Model")
     frWac_model_path = "https://dl.fbaipublicfiles.com/fasttext/vectors-crawl/cc.fr.300.vec.gz"
 
 # model = FastText.load_fasttext_format(model_path)  # ce modèle est trop gourmand en mémoire pour être utilisé

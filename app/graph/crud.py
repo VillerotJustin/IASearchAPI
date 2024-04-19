@@ -4,9 +4,9 @@ from typing import Optional
 # Import modules from FastAPI
 from fastapi import APIRouter, Depends, HTTPException, status
 
-# Import internal utilities for database access, authorisation, and schemas
+# Import internal utilities for database access, authorization, and schemas
 from utils.db import neo4j_driver
-from authorisation.auth import get_current_active_user
+from authorization.auth import get_current_active_user
 from utils.schema import User, Node, Nodes, Relationship
 
 # Set the API Router
@@ -70,7 +70,7 @@ from pydantic import BaseModel
 
 
 # CREATE new node
-@router.post('/create_node', response_model=Node)
+@router.post('/create_node', response_model=Node, summary="Permet de créer un nœud avec un label donnée, un JSON peu être fournie dans le body de la requête pour définir les propriétés du nœud.")
 async def create_node(label: str, node_attributes: dict,
                       current_user: User = Depends(get_current_active_user)):
     # Check that node is not User
@@ -83,11 +83,11 @@ async def create_node(label: str, node_attributes: dict,
     print(label)
     print(node_labels)
     # Check that node has an acceptable label
-    if label not in node_labels:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Operation not permitted, node label is not accepted.",
-            headers={"WWW-Authenticate": "Bearer"})
+    # if label not in node_labels:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+    #         detail="Operation not permitted, node label is not accepted.",
+    #         headers={"WWW-Authenticate": "Bearer"})
 
     # Check that attributes dictionary does not modify base fields
     for key in node_attributes:
@@ -135,7 +135,7 @@ async def create_node(label: str, node_attributes: dict,
 
 
 # READ data about a node in the graph by ID
-@router.get('/read/{node_id}', response_model=Node)
+@router.get('/read/{node_id}', response_model=Node, summary="Permet d’obtenir les information d’un nœud d’identifiant donné.")
 async def read_node_id(node_id: int, current_user: User = Depends(get_current_active_user)):
     """
     **Retrieves data about a node in the graph, based on node ID.**
@@ -171,7 +171,7 @@ async def read_node_id(node_id: int, current_user: User = Depends(get_current_ac
 
 
 # READ data about a collection of nodes in the graph
-@router.get('/read_node_collection', response_model=Nodes)
+@router.get('/read_node_collection', response_model=Nodes, summary="Permet d’obtenir les information de nœuds avec une propriété avec une valeur donnée.")
 async def read_nodes(search_node_property: str, node_property_value: str,
                      current_user: User = Depends(get_current_active_user)):
     """
@@ -210,7 +210,7 @@ async def read_nodes(search_node_property: str, node_property_value: str,
 
 
 # UPDATE properties of node in the graph
-@router.put('/update/{node_id}')
+@router.put('/update/{node_id}', summary="Permet de mettre a jour un nœud avec un identifiant donnée, un JSON peu être fournie dans le body de la requête pour définir les propriétés du nœud.")
 async def update_node(node_id: int, attributes: dict):
     # Check that property to update is not part of base list
     for key in attributes:
@@ -237,7 +237,7 @@ async def update_node(node_id: int, attributes: dict):
 
 
 # DELETE node in the graph
-@router.post('/delete/{node_id}')
+@router.post('/delete/{node_id}', summary="Permet de supprimer un nœud d’identifiant donné.")
 async def delete_node(node_id: int):
     cypher = """
     MATCH (node)
@@ -259,7 +259,13 @@ async def delete_node(node_id: int):
 
 # RELATIONSHIPS
 # Create new relationship between two nodes
-@router.post('/create_relationship', response_model=Relationship)
+@router.post('/create_relationship', response_model=Relationship, summary="""Permet de créer une relation avec un label donnée, un JSON peu être fournie dans le body de la requête pour définir les propriétés du nœud, ainsi que les nœuds qui composent la relation. Le JSON doit etre formater de la facon suivante : 
+{
+	"relationship_type": "Owned_by",
+	"relationship_attributes":{},
+	"source_node_id": 10,
+	"target_node_id": 13
+}""")
 async def create_relationship(attributes: dict, current_user: User = Depends(get_current_active_user)):
     relationship_type = attributes['relationship_type']
     print(relationship_type)
@@ -300,6 +306,8 @@ async def create_relationship(attributes: dict, current_user: User = Depends(get
     cypher += (f"RETURN nodeA, nodeB, LABELS(nodeA), LABELS(nodeB), ID(nodeA), ID(nodeB), ID(relationship), "
                f"TYPE(relationship), PROPERTIES(relationship)\n")
 
+    print(cypher)
+
     with neo4j_driver.session() as session:
         result = session.run(
             query=cypher,
@@ -337,8 +345,10 @@ async def create_relationship(attributes: dict, current_user: User = Depends(get
                             detail="Error while creating the relationship.",
                             headers={"WWW-Authenticate": "Bearer"})
 
+
 # READ data about a relationship
-@router.get('/read_relationship/{relationship_id}', response_model=Relationship)
+@router.get('/read_relationship/{relationship_id}', response_model=Relationship,
+            summary="Permet d’obtenir les informations d’un relation d’un ID donnée.")
 async def read_relationship(relationship_id: int):
     cypher = """
         MATCH (nodeA)-[relationship]->(nodeB)
@@ -369,7 +379,9 @@ async def read_relationship(relationship_id: int):
                         target_node=target_node)
 
 
-@router.get('/read_relationship_node_label/')
+# Unused ?
+@router.get('/read_relationship_node_label/',
+            summary="Permet d’obtenir toutes les relations d’un certain type qui sont relier a un nœud donnée.")
 async def read_relationship_node_label(node_id: int, _label: str):
     cypher = f"""
         MATCH (nodeA)-[relationship]->(n2:{_label})
@@ -402,7 +414,7 @@ async def read_relationship_node_label(node_id: int, _label: str):
                         target_node=target_node)
 
 
-@router.get('/read_relationship_btwn_node/')
+@router.get('/read_relationship_btwn_node/', summary="Permet d’obtenir toutes les relations entre deux nœuds donnée.")
 async def read_relationship_btwn_node(node_id1: int, node_id2: int):
     cypher = """
         MATCH (nodeA)-[relationship]->(nodeB)
@@ -442,7 +454,8 @@ async def read_relationship_btwn_node(node_id1: int, node_id2: int):
 
 
 # Update data about a relationship
-@router.put('/update_relationship/{relationship_id}', response_model=Relationship)
+@router.put('/update_relationship/{relationship_id}', response_model=Relationship,
+            summary="Permet de mettre a jour une relations avec un identifiant donnée, un JSON peu être fournie dans le body de la requête pour définir les propriétés de la relation.")
 async def update_relationship(relationship_id: int, attributes: dict):
     cypher = """
     MATCH (nodeA)-[relationship]->(nodeB)
@@ -476,7 +489,7 @@ async def update_relationship(relationship_id: int, attributes: dict):
 
 
 # DELETE relationship in the graph
-@router.post('/delete_relationship/{relationship_id}')
+@router.post('/delete_relationship/{relationship_id}', summary="Permet de supprimer une relation d’identifiant donné")
 async def delete_relationship(relationship_id: int):
     cypher = """
             MATCH (nodeA)-[relationship]->(nodeB)
@@ -513,7 +526,9 @@ async def delete_relationship(relationship_id: int):
         'response': f'Relationship with ID: {relationship_id} was successfully deleted from the graph.'
     }
 
-@router.post('/delete_all_relationship/{node_id}', summary="Delete all relationship of the node of given ID, Node Label in request body")
+
+@router.post('/delete_all_relationship/{node_id}',
+             summary="Delete all relationship of the node of given ID, Node Label in request body")
 async def delete_all_relationship(node_id: int, attributes: dict):
     cypher = f"""
         MATCH (n:{attributes['label']})-[r]-()

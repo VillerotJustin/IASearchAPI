@@ -18,11 +18,14 @@ from pydantic import BaseModel
 from typing import Annotated
 from fastapi import Body
 
-# Import internal utilities for database access, authorisation, and schemas
+# Import internal utilities for database access, authorization, and schemas
 from utils.db import neo4j_driver
 from utils.model import loaded_model
 
 from pprint import pprint
+
+from app.graph.crud import read_nodes
+from app.utils.schema import Node
 
 # Set the API Router
 router = APIRouter()
@@ -126,6 +129,11 @@ class AISearchAttributes(BaseModel):
     start: str = "2024-03-01"
     end: str = "2024-03-05"
     number_person: int = 3
+    adult: int
+    kid: int
+    baby: int
+    pet: int
+    advanced_filters: dict
     n_result: int = 30
     method: str = "TF-IDF OR TF-IDF+Word2Vec"
     similarity_method: str = "cosine OR euclidean OR dot"
@@ -145,6 +153,7 @@ class AISearchResult(BaseModel):
                  "result": []
              }})
 async def AISearch(attributes: AISearchAttributes):
+    print(attributes)
     # Parameter Recovery
     AISearch_part1(attributes)
 
@@ -182,6 +191,8 @@ def AISearch_part1(attributes):
     #   "number_person": 3,
     #   "user_request": "Maison bien éclairée, accessible aux personnes fauteuil roulant."
     # }
+
+    # print(attributes.advanced_filters["Min_Price"])
 
     data['n_result'] = attributes.n_result
     if not isinstance(data['n_result'], int):
@@ -244,37 +255,280 @@ def AISearch_part1(attributes):
             detail=f"Invalid similarity method, possible values:{similarity_method_possible_value}",
             headers={"WWW-Authenticate": "Bearer"})
 
+    data['adult'] = attributes.adult
+    if not isinstance(data['adult'], int):
+        print("Number of adult not an instance of int")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Number of adult not an instance of int",
+            headers={"WWW-Authenticate": "Bearer"})
+
+    data['kid'] = attributes.kid
+    if not isinstance(data['kid'], int):
+        print("Number of kid not an instance of int")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Number of kid not an instance of int",
+            headers={"WWW-Authenticate": "Bearer"})
+
+    data['baby'] = attributes.baby
+    if not isinstance(data['baby'], int):
+        print("Number of baby not an instance of int")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Number of baby not an instance of int",
+            headers={"WWW-Authenticate": "Bearer"})
+
+    data['pet'] = attributes.pet
+    if not isinstance(data['pet'], int):
+        print("Number of pet not an instance of int")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Number of pet not an instance of int",
+            headers={"WWW-Authenticate": "Bearer"})
+
+    temp_number = attributes.advanced_filters.get('Min_Price')
+    if temp_number is not None:
+        temp_number = float(temp_number)
+    data['Min_Price'] = temp_number
+    print(data['Min_Price'])
+    if not isinstance(data['Min_Price'], float) and data['Min_Price'] is not None:
+        message = "Min_Price not an instance of float"
+        print(message)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=message,
+            headers={"WWW-Authenticate": "Bearer"})
+
+    temp_number = attributes.advanced_filters.get('Max_Price')
+    if temp_number is not None:
+        temp_number = float(temp_number)
+    data['Max_Price'] = temp_number
+    print(data['Max_Price'])
+    if not isinstance(data['Max_Price'], float) and data['Max_Price'] is not None:
+        message = "Max_Price not an instance of float"
+        print(message)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=message,
+            headers={"WWW-Authenticate": "Bearer"})
+
+    data['type'] = attributes.advanced_filters.get('type')
+    print(data['type'])
+    if not isinstance(data['type'], str) and data['type'] is not None:
+        message = "Type not an instance of str"
+        print(message)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=message,
+            headers={"WWW-Authenticate": "Bearer"})
+
+    data['categorie'] = attributes.advanced_filters.get('categorie')
+    print(data['categorie'])
+    if not isinstance(data['categorie'], str) and data['type'] is not None:
+        message = "categorie not an instance of str"
+        print(message)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=message,
+            headers={"WWW-Authenticate": "Bearer"})
+
+    data['reservation_auto'] = attributes.advanced_filters.get('reservation_auto')
+    if data['reservation_auto'] == "on":
+        data['reservation_auto'] = True
+    else:
+        data['reservation_auto'] = False
+    print(data['reservation_auto'])
+    if not isinstance(data['reservation_auto'], bool):
+        message = "reservation_auto not an instance of bool"
+        print(message)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=message,
+            headers={"WWW-Authenticate": "Bearer"})
+
+    data['arrive_auto'] = attributes.advanced_filters.get('arrive_auto')
+    if data['arrive_auto'] == "on":
+        data['arrive_auto'] = True
+    else:
+        data['arrive_auto'] = False
+    print(data['arrive_auto'])
+    if not isinstance(data['arrive_auto'], bool):
+        message = "arrive_auto not an instance of bool"
+        print(message)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=message,
+            headers={"WWW-Authenticate": "Bearer"})
+
+    temp_number = attributes.advanced_filters.get('nbr_chambre')
+    if temp_number is None: temp_number = 0
+    data['nbr_chambre'] = int(temp_number)
+    print(data['nbr_chambre'])
+    if not isinstance(data['nbr_chambre'], int):
+        message = "nbr_chambre not an instance of int"
+        print(message)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=message,
+            headers={"WWW-Authenticate": "Bearer"})
+
+    data['nbr_salle_bain'] = int(attributes.advanced_filters.get('nbr_salle_bain'))
+    print(data['nbr_salle_bain'])
+    if not isinstance(data['nbr_salle_bain'], int):
+        message = "nbr_salle_bain not an instance of int"
+        print(message)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=message,
+            headers={"WWW-Authenticate": "Bearer"})
+
+    data['nbr_lits'] = int(attributes.advanced_filters.get('nbr_lits'))
+    print(data['nbr_lits'])
+    if not isinstance(data['nbr_lits'], int):
+        message = "nbr_lits not an instance of int"
+        print(message)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=message,
+            headers={"WWW-Authenticate": "Bearer"})
+
 
 # Filter Ressource with filters
 def AISearch_part2():
+    number_filter = 0
 
-    disponibilies = ""
+    disponibilities = ""
     if data['start'] != "" and data['end'] != "":
-        disponibilies = f"""NOT EXISTS {{
+        number_filter += 1
+        disponibilities = f"""NOT EXISTS {{
         MATCH(l) - [r: is_located_by]->(c:client)
         WHERE(date("{data['start']}") > date(r.start) AND date("{data['start']}") < date(r.end))
         OR(date("{data['end']}") > date(r.start) AND date("{data['end']}") < date(r.end))
-    }}"""
+        }}"""
 
     location = ""
     if data['destination'] != "":
-        if disponibilies != "":
-            location = "AND"
+        if number_filter > 0:
+            location = " AND"
         location += f""" l.Ville CONTAINS "{data['destination']}" """
+        number_filter += 1
 
     Nombre_personnes = ""
     if data['number_person'] != "":
-        if disponibilies != "" or location != "":
+        if number_filter > 0:
             Nombre_personnes = "AND"
-        Nombre_personnes += f""" toInteger(l.Nombre_personnes) > {data['number_person']} """
+        Nombre_personnes += f""" toInteger(l.nombre_de_voyageurs) > {data['number_person']} """
+        number_filter += 1
 
-    if disponibilies != "" or location != "" or Nombre_personnes != "":
-        disponibilies = "WHERE " + disponibilies
+    kid = ""
+    if data['kid']:
+        if number_filter > 0:
+            kid = "AND"
+        kid += f""" l.accepte_enfant = ({data['kid']} > 0)"""
+        number_filter += 1
+
+    baby = ""
+    if data['baby']:
+        if number_filter > 0:
+            baby = "AND"
+        baby += f""" l.accepte_bebe = ({data['baby']} > 0)"""
+        number_filter += 1
+
+
+    Price = ""
+    pcount = 0
+    if data.get('Min_Price') is not None:
+        pcount += 1
+
+    if data.get('Max_Price') is not None:
+        pcount += 2
+
+    if pcount != 0:
+        if number_filter > 0:
+            Price = " AND"
+        match pcount:
+            case 1:  # only min price
+                Price += f""" toFloat(l.prix_nuitee) >= {data.get('Min_Price')} """
+            case 2:  # only max price
+                Price += f""" toFloat(l.prix_nuitee) <= {data.get('Max_Price')} """
+            case 3:  # Both
+                Price += f""" {data.get('Min_Price')} <= toFloat(l.prix_nuitee) <= {data.get('Max_Price')} """
+        number_filter += 1
+
+    # Type de réservation
+    Type_reservation = ""
+    if data.get('type') is not None:
+        if number_filter > 0:
+            Type_reservation = "AND"
+        Type_reservation += f""" l.type_reservation = "{data['type']}" """
+        number_filter += 1
+
+    # Category
+    categorie = ""
+    if data.get('categorie') is not None:
+        if number_filter > 0:
+            categorie = "AND"
+        categorie += f""" l.type_habitation = "{data['categorie']}" """
+        number_filter += 1
+
+    # reservation_auto
+    reservation_auto = ""
+    if data['reservation_auto']:
+        if number_filter > 0:
+            reservation_auto = "AND"
+        reservation_auto += f""" l.acceptation = "Instantanée" """
+        number_filter += 1
+
+    # Accueil
+    arrive_auto = ""
+    if data.get('arrive_auto'):
+        if number_filter > 0:
+            arrive_auto = "AND"
+        arrive_auto += f""" l.accueil = "Arrivée autonome" """
+        number_filter += 1
+
+    # nbr_chambre
+    nbr_chambre = ""
+    if data.get('nbr_chambre') is not None:
+        if number_filter > 0:
+            nbr_chambre = "AND"
+        nbr_chambre += f""" toInteger(l.nbr_chambre) >= {data['nbr_chambre']} """
+        number_filter += 1
+
+    # nbr_salle_bain
+    nbr_salle_bain = ""
+    if data.get('nbr_salle_bain') is not None:
+        if number_filter > 0:
+            nbr_salle_bain = "AND"
+        nbr_salle_bain += f""" toInteger(l.nbr_salle_bain) >= {data['nbr_salle_bain']} """
+        number_filter += 1
+
+    # nbr_chambre
+    nbr_lits = ""
+    if data.get('nbr_lits') is not None:
+        if number_filter > 0:
+            nbr_lits = "AND"
+        nbr_lits += f""" toInteger(l.nbr_lits) >= {data['nbr_lits']} """
+        number_filter += 1
+
+    if number_filter > 0:
+        disponibilities = "WHERE " + disponibilities
 
     query = f"""MATCH (l: logement)-[r]-(m)
-    {disponibilies}
+    {disponibilities}
     {location}
     {Nombre_personnes}
+    {kid}
+    {baby}
+    {Price}
+    {Type_reservation}
+    {categorie}
+    {reservation_auto}
+    {arrive_auto}
+    {nbr_chambre}
+    {nbr_salle_bain}
+    {nbr_lits}
     RETURN DISTINCT l AS nodes, collect(r) AS relations, collect(m) AS external_nodes;"""
 
     print(query)
@@ -287,6 +541,15 @@ def AISearch_part2():
 def node_texte_concatenation(df):
     # df['combined'] = df['title'] + ' ' + df['description']
 
+    node_type_to_check = [
+        "logement",
+        "equipements",
+        "piece_lieux",
+        "adaptation",
+        "caracteristique",
+        "ouvertures"
+    ]
+
     # pprint(data['filtered_node'])
     # print("============================================================")
     i = 0
@@ -297,6 +560,7 @@ def node_texte_concatenation(df):
         # print()
         relations = df['relations'][i]
         external_nodes = df['external_nodes'][i]
+        print(external_nodes)
         node_properties_string = ""
         for property_key in node:
             if isinstance(node[property_key], str):
@@ -305,11 +569,35 @@ def node_texte_concatenation(df):
         ex_node_string = ""
         for ex_node in external_nodes:
             # print()
-            # print(ex_node)
+            print(ex_node)
             for key in ex_node:
-                if key != "created_time" and key != "created_by" and key != "ID_":
+                if key != "created_time" and key != "created_by" and key[0:3] != "ID_":
                     if isinstance(ex_node[key], str):
                         ex_node_string += ex_node[key] + ' '
+                if key[0:3] == "ID_" and key != "ID_Post":
+                    label = key[3:].lower()
+                    print(label)
+                    if label == "piece_lieu":
+                        print(ex_node[key])
+
+                        cypher = f"""
+                                MATCH (node)-[r]-(m:ouvertures)
+                                WHERE node.{key} = '{ex_node[key]}'
+                                RETURN ID(m) as id, LABELS(m) as labels, m as node;
+                                """
+
+                        with neo4j_driver.session() as session:
+                            result = session.run(query=cypher)
+
+                            collection_data = result.data()
+
+                        node_list = []
+                        for node in collection_data:
+
+                            for properties in node['node']:
+                                if isinstance(properties, str):
+                                    ex_node_string += properties + ' '
+
         # print(ex_node_string)
 
         final_string = node_properties_string + ex_node_string
@@ -683,3 +971,5 @@ def find_recommended_ressources(df, recommended_ressources_id_list):
     for id in recommended_ressources_id_list:
         recommended_ressources.append(df.iloc[id])
     data['recommended_ressources'] = recommended_ressources
+
+

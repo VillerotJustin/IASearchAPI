@@ -30,7 +30,10 @@ class Config:
     ALGORITHM = os.environ.get('ALGORITHM', "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get('ACCESS_TOKEN_EXPIRE_MINUTES', 10_080))  # one week
 
-    LOAD_LOCAL_MODEL = os.environ.get('LOAD_LOCAL_MODEL', False)
+    if os.environ.get('LOAD_LOCAL_MODEL', '') == 'true':
+        LOAD_LOCAL_MODEL = True
+    else:
+        LOAD_LOCAL_MODEL = False
 
 
 settings = Config()
