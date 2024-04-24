@@ -22,11 +22,6 @@ from fastapi import Body
 from utils.db import neo4j_driver
 from utils.model import loaded_model
 
-from pprint import pprint
-
-from app.graph.crud import read_nodes
-from app.utils.schema import Node
-
 # Set the API Router
 router = APIRouter()
 
