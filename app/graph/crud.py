@@ -297,11 +297,11 @@ async def create_relationship(attributes: dict, current_user: User = Depends(get
     else:
         unpacked_attributes = ''
 
-    cypher = f"""MATCH (nodeA:{source_node["label"]}) WHERE id(nodeA) = $nodeA_ID\n"""
-    cypher += f"""MATCH (nodeB:{target_node["label"]}) WHERE id(nodeB) = $nodeB_ID\n"""
+    cypher = f"""MATCH (nodeA:{source_node["label"]}) WHERE id(nodeA) = {source_node["id"]}\n"""
+    cypher += f"""MATCH (nodeB:{target_node["label"]}) WHERE id(nodeB) = {target_node["id"]}\n"""
     cypher += f"""CREATE (nodeA)-[relationship:{relationship_type}]->(nodeB)\n"""
-    cypher += f"""SET relationship.created_by = $created_by\n"""
-    cypher += f"""SET relationship.created_time = $created_time\n"""
+    cypher += f"""SET relationship.created_by = "{current_user.username}"\n"""
+    cypher += f"""SET relationship.created_time = "{str(datetime.now(timezone.utc))}"\n"""
     cypher += f"{unpacked_attributes}"
     cypher += (f"RETURN nodeA, nodeB, LABELS(nodeA), LABELS(nodeB), ID(nodeA), ID(nodeB), ID(relationship), "
                f"TYPE(relationship), PROPERTIES(relationship)\n")
@@ -311,12 +311,6 @@ async def create_relationship(attributes: dict, current_user: User = Depends(get
     with neo4j_driver.session() as session:
         result = session.run(
             query=cypher,
-            parameters={
-                'created_by': current_user.username,
-                'created_time': str(datetime.now(timezone.utc)),
-                'nodeA_ID': source_node["id"],
-                'nodeB_ID': target_node["id"],
-            },
         )
 
         relationship_data = result.data()
