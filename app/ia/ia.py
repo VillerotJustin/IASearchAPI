@@ -406,7 +406,7 @@ def AISearch_part2():
     if data['destination'] != "":
         if number_filter > 0:
             location = " AND"
-        location += f""" l.Ville CONTAINS "{data['destination']}" """
+        location += f""" l.ville CONTAINS "{data['destination']}" OR l.adresse CONTAINS "{data['destination']}" """
         number_filter += 1
 
     Nombre_personnes = ""
